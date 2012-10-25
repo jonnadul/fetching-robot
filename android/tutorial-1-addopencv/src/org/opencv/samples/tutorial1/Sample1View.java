@@ -7,6 +7,13 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -45,6 +52,11 @@ class Sample1View extends SampleViewBase {
     private Bitmap              mBitmap;
     private int                 mViewMode;
 
+	protected DatagramSocket socket;
+	protected byte[] outData;
+	protected InetAddress serverIP;
+	protected DatagramPacket out;
+    
     public Sample1View(Context context) {
         super(context);
         mViewMode = VIEW_MODE_RGBA;
@@ -66,6 +78,27 @@ class Sample1View extends SampleViewBase {
         mIntermediateMat = new Mat();
 
         mBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
+        
+        try {
+			socket = new DatagramSocket();
+			outData =  ("Ping").getBytes();
+			serverIP = InetAddress.getByName("192.168.1.3");
+			out = new DatagramPacket(outData,outData.length, serverIP,54259);
+			Log.i(TAG, "Datagram sent");
+			socket.send(out);
+	        
+        } catch (UnknownHostException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		catch (SocketException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (IOException e) {
+		// 	TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+        
     }
 
     @Override
@@ -177,26 +210,11 @@ class Sample1View extends SampleViewBase {
         			 
         		 }
         		 Core.rectangle(mRgba, new Point(minX, minY), new Point(maxX, maxY),new Scalar(0, 0, 255), 3); 
+        		 sendPointsUDP(minX, minY, maxX, maxY);
+        	 }else{
+        		 //no max point
+        		sendPointsUDP(-9999,-9999,-9999,-9999);
         	 }
-        	 /*if (mCascade != null) {
-                 int heightG = mGraySubmat.rows();
-                 int faceSize = Math.round(heightG * minFaceSize);
-                 faces = new MatOfRect();
-                 mCascade.detectMultiScale(mGraySubmat, faces, 1.1, 2, 2 
-                         , new Size(faceSize, faceSize), new Size());
-                 Rect[] facesArray = faces.toArray();
-                 for (int i = 0; i < facesArray.length; i++)
-                     Core.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), new Scalar(0, 255, 0, 255), 3);
-                 //out.setData(("Frame").getBytes());
-                 //try {
-				//	socket.send(out);
-				//} catch (IOException e) {
-				//	// TODO Auto-generated catch block
-				//	e.printStackTrace();
-				//}
-          	 }*/
-        	//Imgproc.cvtColor(mGraySubmat, mRgba, Imgproc.COLOR_GRAY2RGBA, 4);
-        	//Core.rectangle(mRgba, new Point(10,10), new Point(100, 100), new Scalar(0, 255, 0, 255), 3);
         	break;
         }
 
@@ -219,4 +237,26 @@ class Sample1View extends SampleViewBase {
     public void setOverlayText(String mOverlayText) {
   		this.mOverlayText = mOverlayText;
   	}
+    
+    protected int sendPointsUDP(int minX, int minY, int maxX, int maxY)
+    {
+    	 ByteBuffer byteBuffer = ByteBuffer.allocate(16);        
+         IntBuffer intBuffer = byteBuffer.asIntBuffer();
+         intBuffer.put(minX);
+         intBuffer.put(minY);
+         intBuffer.put(maxX);
+         intBuffer.put(maxY);
+         
+         byte[] array = byteBuffer.array();
+    	
+    	out.setData(array);
+    	  try {
+				socket.send(out);
+				return 1;
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    	  return 0;
+    }
 }

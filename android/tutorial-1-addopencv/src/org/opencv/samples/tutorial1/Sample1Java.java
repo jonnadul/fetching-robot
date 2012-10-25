@@ -8,6 +8,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.security.PublicKey;
 import java.util.ArrayList;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -37,6 +43,8 @@ public class Sample1Java extends Activity {
     private MenuItem            mItemPreviewBall;
     private MenuItem			mItemCommand;
     private Sample1View         mView;
+
+
 
     private BaseLoaderCallback  mOpenCVCallBack = new BaseLoaderCallback(this) {
         @Override
@@ -85,7 +93,8 @@ public class Sample1Java extends Activity {
                           }
                     	  mView.setOverlayText("ball");
                     }
-
+                    
+                    
                     // Check native OpenCV camera
                     if( !mView.openCamera() ) {
                         AlertDialog ad = new AlertDialog.Builder(mAppContext).create();
@@ -229,5 +238,6 @@ public class Sample1Java extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         
     }
+   
     
 }
