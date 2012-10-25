@@ -152,7 +152,8 @@ class Sample1View extends SampleViewBase {
         case VIEW_MODE_BALL:
         	 Imgproc.cvtColor(mYuv, mRgba, Imgproc.COLOR_YUV420sp2RGB, 4);
         	 Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV,0);
-        	 Core.inRange(mHsv, new Scalar(30,30,30), new Scalar(100,255,255), mThreshMat);
+        	 //Core.inRange(mHsv, new Scalar(38,40,10), new Scalar(80,255,255), mThreshMat);
+        	 Core.inRange(mHsv, new Scalar(38,40,10), new Scalar(80,255,255), mThreshMat);
         	 Imgproc.erode(mThreshMat, mThreshMat,  Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(7,7)));
         	 Imgproc.dilate(mThreshMat, mThreshMat,  Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(7,7)));
         	 //Imgproc.cvtColor(mThreshMat, mHsv, Imgproc.COLOR_GRAY2RGB);
