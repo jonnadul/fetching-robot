@@ -1,6 +1,8 @@
 import time
 from claw import Claw
 
+pwm.enable()
+
 claw = Claw()
 
 claw.start()

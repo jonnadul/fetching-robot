@@ -38,8 +38,6 @@ class Proximity:
 			if val.find('free') < 0:
 				raise Exception('Pin ' + pin + ' is already in use')
 			
-			self.__lastValue = 0
-			
 			open(self.__pin + "/request", 'w').write("1")
 			open(self.__pin + "/run", 'w').write("0")
 			open(self.__pin + "/period_freq", 'w').write(str(PWM_FREQUENCY))
