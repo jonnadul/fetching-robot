@@ -1,6 +1,6 @@
 #max duty_ns is 20ms and min is 5ms. We want 180 degrees (divisions)#Some variables
 # This values may change depending on your servos
-MIN_DUTY_NS = 500000
+MIN_DUTY_NS = 200000
 MAX_DUTY_NS = 2000000
 PWM_FRECUENCY = 50 #hz
 DEGREE_TO_NS = (MAX_DUTY_NS-MIN_DUTY_NS)/180

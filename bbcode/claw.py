@@ -5,7 +5,6 @@ from servo import Servo
 
 class Claw:
 	def start(self):
-		pwm.enable()
 		self.__servo = Servo()	
 		self.__servo.attach("P9_14")
 		self.__servo.writeMicroseconds(500)
@@ -27,5 +26,8 @@ class Claw:
 			i = i + 1
 			
 	def stop(self):
+		self.__servo.detach()
+	
+	def __del__(self):
 		self.__servo.detach()
 
