@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
  struct sockaddr_in adr_srvr;
  struct sockaddr_in adr;
  int len_inet;
- int s;
+ int s, *dgramptr;
  char dgram[512];
 
  if (argc >= 2) {
@@ -60,10 +60,17 @@ printf("starting recv\n");
   displayError("recvfrom");
  }
  dgram[z] = 0;
- printf("result from %s port %u :\n\t'%s'\n",
+#if 0 
+printf("result from %s port %u :\n\t'%s'\n",
    inet_ntoa(adr.sin_addr),
    (unsigned)ntohs(adr.sin_port),
    dgram);
+#endif
+ dgramptr = (int *)dgram;
+ for(x=0; x<4; x++){
+ printf("%d\t",ntohl(*dgramptr++));
+ }
+ printf("\n");
   }
 close(s);
 putchar('\n');
