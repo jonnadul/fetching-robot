@@ -94,12 +94,12 @@ main (int argc, char **argv)
   enable_list[0] = 1;
   enable_list[1] = 2;
   /* data4 and data5: mode3 = eqep_in */
-  i = system("echo 23 > /sys/kernel/debug/omap_mux/lcd_data4"); /* eqep2a_in = gpio2_10 = p8-41 */
-  i = system("echo 23 > /sys/kernel/debug/omap_mux/lcd_data5"); /* eqep2b_in = gpio2_11 = p8-42 */
-  
- /* uart4: mode2 = eqep_in */
-i = system("echo 22 > /sys/kernel/debug/omap_mux/lcd_data12"); /* eqep1a_in = gpio0_8 = p8-35 */
-  i = system("echo 22 > /sys/kernel/debug/omap_mux/lcd_data13"); /* eqep1b_in = gpio0_9 = p8-33 */
+  i = system ("echo 23 > /sys/kernel/debug/omap_mux/lcd_data4");	/* eqep2a_in = gpio2_10 = p8-41 */
+  i = system ("echo 23 > /sys/kernel/debug/omap_mux/lcd_data5");	/* eqep2b_in = gpio2_11 = p8-42 */
+
+  /* uart4: mode2 = eqep_in */
+  i = system ("echo 22 > /sys/kernel/debug/omap_mux/lcd_data12");	/* eqep1a_in = gpio0_8 = p8-35 */
+  i = system ("echo 22 > /sys/kernel/debug/omap_mux/lcd_data13");	/* eqep1b_in = gpio0_9 = p8-33 */
   /* Open memory map */
   dev_mem_fd = open ("/dev/mem", O_RDWR);
   if (dev_mem_fd == -1)
@@ -164,7 +164,7 @@ i = system("echo 22 > /sys/kernel/debug/omap_mux/lcd_data12"); /* eqep1a_in = gp
     }
   count = last_count = eqep_regs[(EQEP1_OFFSET + QPOSCNT) >> 2];
   count2 = last_count2 = eqep_regs[(EQEP2_OFFSET + QPOSCNT) >> 2];
-  printf ("count: %x %x\n", count,count2);
+  printf ("count: %x %x\n", count, count2);
   timeout (0);
 
   while (1)
@@ -177,9 +177,9 @@ i = system("echo 22 > /sys/kernel/debug/omap_mux/lcd_data12"); /* eqep1a_in = gp
 
       count = eqep_regs[(EQEP1_OFFSET + QPOSCNT) >> 2];
       count2 = eqep_regs[(EQEP2_OFFSET + QPOSCNT) >> 2];
-	if (count != last_count || count2 != last_count2)
+      if (count != last_count || count2 != last_count2)
 	{
-	  printf ("count: %x %x\n", count,count2);
+	  printf ("count: %x %x\n", count, count2);
 	  last_count = count;
 	  last_count2 = count2;
 	}
