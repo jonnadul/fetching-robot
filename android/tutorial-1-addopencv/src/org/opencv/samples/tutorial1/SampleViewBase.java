@@ -109,7 +109,7 @@ public abstract class SampleViewBase extends SurfaceView implements SurfaceHolde
         if (mCamera != null) {
             Log.i(TAG, "Setup Camera - " + width + "x" + height);
             Camera.Parameters params = mCamera.getParameters();
-            params.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+           params.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
             
             List<Camera.Size> sizes = params.getSupportedPreviewSizes();
             mFrameWidth = width;

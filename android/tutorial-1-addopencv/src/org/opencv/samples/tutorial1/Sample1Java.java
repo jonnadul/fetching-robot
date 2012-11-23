@@ -3,29 +3,22 @@ package org.opencv.samples.tutorial1;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-import java.security.PublicKey;
 import java.util.ArrayList;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Environment;
 import android.speech.RecognizerIntent;
 import android.util.Log;
 import android.view.Menu;
@@ -42,9 +35,14 @@ public class Sample1Java extends Activity {
     private MenuItem            mItemPreviewHSV;
     private MenuItem            mItemPreviewBall;
     private MenuItem			mItemCommand;
+    private MenuItem 			mItemPreviewPyr;
     private Sample1View         mView;
-
-
+    private MenuItem			mY1;
+    private MenuItem			mY2;
+    private MenuItem			mR;
+    private MenuItem			mB;
+    private MenuItem			mSample;
+    
 
     private BaseLoaderCallback  mOpenCVCallBack = new BaseLoaderCallback(this) {
         @Override
@@ -71,10 +69,25 @@ public class Sample1Java extends Activity {
                             	 objstring= objstring + readString ;
                                  readString = buffreader.readLine ( ) ;
                              }
-                             
+                             objstring = objstring.toLowerCase();
                              isr.close ( ) ;
                              mView.setOverlayText(objstring);
-                         	
+                             if(objstring.contains("yellow")){
+                            	 mView.setViewMode(Sample1View.VIEW_MODE_PYR);
+                            	 mView.setColorMode(Sample1View.COLOR_MODE_Y);
+                             }else if(objstring.contains("green")){
+                            	 mView.setViewMode(Sample1View.VIEW_MODE_PYR);
+                            	 mView.setColorMode(Sample1View.COLOR_MODE_G);
+                             }else if(objstring.contains("red")){
+                            	 mView.setViewMode(Sample1View.VIEW_MODE_PYR);
+                            	 mView.setColorMode(Sample1View.COLOR_MODE_R);
+                             }else if(objstring.contains("blue")){
+                            	 mView.setViewMode(Sample1View.VIEW_MODE_PYR);
+                            	 mView.setColorMode(Sample1View.COLOR_MODE_B);
+                             }else if(objstring.contains("pink")){
+                            	 mView.setViewMode(Sample1View.VIEW_MODE_PYR);
+                            	 mView.setColorMode(Sample1View.COLOR_MODE_M);
+                             }                         	
                          } catch ( IOException ioe ) {
                              ioe.printStackTrace ( ) ;
                              mView.setOverlayText(objstring);
@@ -171,7 +184,14 @@ public class Sample1Java extends Activity {
         mItemPreviewRGBA = menu.add("Preview RGBA");
         mItemPreviewHSV = menu.add("Preview HSV");
         mItemPreviewBall = menu.add("Object");
+        mItemPreviewPyr = menu.add("Pyramid");
         mItemCommand = menu.add("Command");
+        mY1 = menu.add("Y1");
+        mY2 = menu.add("Y2");
+        mR = menu.add("R");
+        mB = menu.add("B");
+        mSample = menu.add("Sample Hue");
+        		
         return true;
     }
 
@@ -184,8 +204,20 @@ public class Sample1Java extends Activity {
             mView.setViewMode(Sample1View.VIEW_MODE_HSV);
         } else if (item == mItemPreviewBall) {
         	mView.setViewMode(Sample1View.VIEW_MODE_BALL);
+        }else if (item ==mItemPreviewPyr){
+        	mView.setViewMode(Sample1View.VIEW_MODE_PYR);
         }else if(item == mItemCommand){
         	listenToSpeech();
+        }else if(item == mY1){
+        	mView.setColorMode(Sample1View.COLOR_MODE_Y);
+        }else if(item == mY2){
+        	mView.setColorMode(Sample1View.COLOR_MODE_G);
+        }else if(item == mR){
+        	mView.setColorMode(Sample1View.COLOR_MODE_R);
+        }else if(item == mB){
+        	mView.setColorMode(Sample1View.COLOR_MODE_B);
+        }else if(item == mSample){
+        	mView.setViewMode(Sample1View.VIEW_MODE_SAMPLE);
         }
         return true;
     }
