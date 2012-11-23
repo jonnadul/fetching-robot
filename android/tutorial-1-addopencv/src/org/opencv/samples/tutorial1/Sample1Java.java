@@ -37,8 +37,8 @@ public class Sample1Java extends Activity {
     private MenuItem			mItemCommand;
     private MenuItem 			mItemPreviewPyr;
     private Sample1View         mView;
-    private MenuItem			mY1;
-    private MenuItem			mY2;
+    private MenuItem			mY;
+    private MenuItem			mG;
     private MenuItem			mR;
     private MenuItem			mB;
     private MenuItem			mSample;
@@ -181,16 +181,17 @@ public class Sample1Java extends Activity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         Log.i(TAG, "called onCreateOptionsMenu");
+        mR = menu.add("R");
+        mG = menu.add("G");
+        mB = menu.add("B");
+        mY = menu.add("Y");
+        mItemCommand = menu.add("Command");
+        mSample = menu.add("Sample");
+        
         mItemPreviewRGBA = menu.add("Preview RGBA");
         mItemPreviewHSV = menu.add("Preview HSV");
         mItemPreviewBall = menu.add("Object");
         mItemPreviewPyr = menu.add("Pyramid");
-        mItemCommand = menu.add("Command");
-        mY1 = menu.add("Y1");
-        mY2 = menu.add("Y2");
-        mR = menu.add("R");
-        mB = menu.add("B");
-        mSample = menu.add("Sample Hue");
         		
         return true;
     }
@@ -208,14 +209,18 @@ public class Sample1Java extends Activity {
         	mView.setViewMode(Sample1View.VIEW_MODE_PYR);
         }else if(item == mItemCommand){
         	listenToSpeech();
-        }else if(item == mY1){
+        }else if(item == mY){        	
         	mView.setColorMode(Sample1View.COLOR_MODE_Y);
-        }else if(item == mY2){
+        	mView.setViewMode(Sample1View.VIEW_MODE_PYR);
+        }else if(item == mG){
         	mView.setColorMode(Sample1View.COLOR_MODE_G);
+        	mView.setViewMode(Sample1View.VIEW_MODE_PYR);
         }else if(item == mR){
         	mView.setColorMode(Sample1View.COLOR_MODE_R);
+        	mView.setViewMode(Sample1View.VIEW_MODE_PYR);
         }else if(item == mB){
         	mView.setColorMode(Sample1View.COLOR_MODE_B);
+        	mView.setViewMode(Sample1View.VIEW_MODE_PYR);
         }else if(item == mSample){
         	mView.setViewMode(Sample1View.VIEW_MODE_SAMPLE);
         }

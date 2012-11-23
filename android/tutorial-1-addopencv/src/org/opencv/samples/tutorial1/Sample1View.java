@@ -68,13 +68,13 @@ class Sample1View extends SampleViewBase {
     private Scalar 				mThreshLow = new Scalar(38,40,10);
     private Scalar				mThreshHigh = new Scalar(80,255,255);
 
-    private Scalar y1Low = new Scalar(28,40,10);
-	private Scalar y1Hi = new Scalar(50,255,255);
-	private Scalar y2Low = new Scalar(42,40,100);
-	private Scalar y2Hi = new Scalar(80,255,255);
+    private Scalar yLow = new Scalar(25,40,100);
+	private Scalar yHi = new Scalar(50,255,255);
+	private Scalar gLow = new Scalar(70,40,100);
+	private Scalar gHi = new Scalar(100,255,255);
 	
 	private Scalar rLowA = new Scalar(0,40,100);
-	private Scalar rHiA = new Scalar(5,255,255);
+	private Scalar rHiA = new Scalar(20,255,255);
 	private Scalar rLowB = new Scalar(200,40,100);
 	private Scalar rHiB = new Scalar(255,255,255);
 	
@@ -239,8 +239,8 @@ class Sample1View extends SampleViewBase {
 	        		 Core.bitwise_or(mThreshMata, mThreshMatb, mThreshMat);
 	        		 break;
 	        	default:
-	        		mThreshLow = y1Low;
-	        		mThreshHigh = y1Hi;
+	        		mThreshLow = yLow;
+	        		mThreshHigh = yHi;
 	        		Core.inRange(mHsv, mThreshLow, mThreshHigh, mThreshMat);
 	        		break; 
         	 }
@@ -304,13 +304,9 @@ class Sample1View extends SampleViewBase {
         	Mat pyrDownMat = new Mat();
         	Imgproc.cvtColor(mYuv, mRgba, Imgproc.COLOR_YUV420sp2RGB, 4);
 
-        	Imgproc.pyrDown(mRgba, pyrDownMat);
-        	Imgproc.pyrDown(pyrDownMat, pyrDownMat);
-        	//Imgproc.pyrUp(pyrDownMat, pyrDownMat);
-        	//Imgproc.pyrUp(pyrDownMat, mRgba);
-          	//Mat hsvMat = new Mat();
-        	Imgproc.cvtColor(pyrDownMat, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
-        	//Core.inRange(mHsv, new Scalar(42,100,100), new Scalar(60,255,255), mThreshMat);
+        	//Imgproc.pyrDown(mRgba, pyrDownMat);
+        	//Imgproc.pyrDown(pyrDownMat, pyrDownMat);
+        	Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
         	
        	 switch(mColorMode){
 	    	 case COLOR_MODE_R:
@@ -319,7 +315,7 @@ class Sample1View extends SampleViewBase {
         		 Core.bitwise_or(mThreshMata, mThreshMatb, mThreshMat);
         		 break;
 	    	 case COLOR_MODE_G:
-	    		Core.inRange(mHsv, y2Low, y2Hi, mThreshMat);
+	    		Core.inRange(mHsv, gLow, gHi, mThreshMat);
 	    		break;
 	    	 case COLOR_MODE_B:
 	    		Core.inRange(mHsv, bLow, bHi, mThreshMat);
@@ -328,22 +324,22 @@ class Sample1View extends SampleViewBase {
 	    	 case COLOR_MODE_O: 
 	    	 case COLOR_MODE_Y:
 	    	 default:
-		    	Core.inRange(mHsv, y1Low, y1Hi, mThreshMat);
+		    	Core.inRange(mHsv, yLow, yHi, mThreshMat);
 	    		break; 
 		 }
         	
        	 	Imgproc.dilate(mThreshMat, mThreshMat, new Mat());
        	 	
-	       	Mat pyrUpMat = new Mat();
-	     	Imgproc.pyrUp(mThreshMat, pyrUpMat);
-	     	Imgproc.pyrUp(pyrUpMat, pyrUpMat);
+	       	//Mat pyrUpMat = new Mat();
+	     	//Imgproc.pyrUp(mThreshMat, pyrUpMat);
+	     	//Imgproc.pyrUp(pyrUpMat, pyrUpMat);
      	
-       	 	Imgproc.cvtColor(pyrUpMat, mHsv, Imgproc.COLOR_GRAY2RGB);
+       	 	//Imgproc.cvtColor(pyrUpMat, mHsv, Imgproc.COLOR_GRAY2RGB);
        	 	
        	 contours = new ArrayList<MatOfPoint>();
      	
     	 hierarchy = new Mat(mRgba.size(),CvType.CV_8UC1, new Scalar(0));
-    	 Imgproc.findContours(pyrUpMat, contours, hierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+    	 Imgproc.findContours(mThreshMat, contours, hierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
     	 
     	areaMax = 0;
