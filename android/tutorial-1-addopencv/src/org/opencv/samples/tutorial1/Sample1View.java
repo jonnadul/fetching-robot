@@ -24,6 +24,7 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
@@ -39,7 +40,16 @@ class Sample1View extends SampleViewBase {
     public static final int     VIEW_MODE_RGBA  = 0;
     public static final int     VIEW_MODE_HSV  = 1;
     public static final int     VIEW_MODE_BALL = 2;
-
+    public static final int		VIEW_MODE_PYR = 3;
+    public static final int		VIEW_MODE_SAMPLE = 4;
+    
+    public static final int		COLOR_MODE_R = 0;
+    public static final int		COLOR_MODE_G = 1;
+    public static final int		COLOR_MODE_B = 2;
+    public static final int		COLOR_MODE_Y = 3;
+    public static final int		COLOR_MODE_M = 4;
+    public static final int		COLOR_MODE_O = 5;
+    
     private String 				mOverlayText = "OPENCV";
   
 
@@ -47,15 +57,66 @@ class Sample1View extends SampleViewBase {
     private Mat                 mRgba;
     private Mat					mHsv;
     private Mat					mThreshMat;
+    private Mat					mThreshMata;
+    private Mat					mThreshMatb;
     private Mat                 mGraySubmat;
     private Mat                 mIntermediateMat;
     private Bitmap              mBitmap;
     private int                 mViewMode;
+    private int					mColorMode;
+    
+    private Scalar 				mThreshLow = new Scalar(38,40,10);
+    private Scalar				mThreshHigh = new Scalar(80,255,255);
 
+    private Scalar yLow = new Scalar(25,40,100);
+	private Scalar yHi = new Scalar(50,255,255);
+	private Scalar gLow = new Scalar(70,40,100);
+	private Scalar gHi = new Scalar(100,255,255);
+	
+	private Scalar rLowA = new Scalar(0,40,100);
+	private Scalar rHiA = new Scalar(20,255,255);
+	private Scalar rLowB = new Scalar(200,40,100);
+	private Scalar rHiB = new Scalar(255,255,255);
+	
+	private Scalar bLow = new Scalar(135,30,30);
+	private Scalar bHi = new Scalar(170,255,255);
+    
 	protected DatagramSocket socket;
 	protected byte[] outData;
 	protected InetAddress serverIP;
 	protected DatagramPacket out;
+
+	private List<MatOfPoint> contours;
+
+	private Mat hierarchy;
+
+	private double areaMax;
+
+	private double areaCalc;
+
+	private Iterator<MatOfPoint> contIter;
+
+	private MatOfPoint contMat;
+
+	private MatOfPoint maxMat;
+
+	private int iterIndex;
+
+	private int maxIndex;
+
+	private int minArea;
+
+	private Iterator<Point> pointIter;
+
+	private Point ballPoint;
+
+	private int minX;
+
+	private int minY;
+
+	private int maxX;
+
+	private int maxY;
     
     public Sample1View(Context context) {
         super(context);
@@ -74,6 +135,8 @@ class Sample1View extends SampleViewBase {
         mGraySubmat = mYuv.submat(0, getFrameHeight(), 0, getFrameWidth());
         mHsv = new Mat();
         mThreshMat = new Mat();
+        mThreshMata = new Mat();
+        mThreshMatb = new Mat();
         mRgba = new Mat();
         mIntermediateMat = new Mat();
 
@@ -82,7 +145,7 @@ class Sample1View extends SampleViewBase {
         try {
 			socket = new DatagramSocket();
 			outData =  ("Ping").getBytes();
-			serverIP = InetAddress.getByName("192.168.1.3");
+			serverIP = InetAddress.getByName("192.168.1.6");
 			out = new DatagramPacket(outData,outData.length, serverIP,54259);
 			Log.i(TAG, "Datagram sent");
 			socket.send(out);
@@ -120,6 +183,10 @@ class Sample1View extends SampleViewBase {
             	mHsv.release();
             if(mThreshMat!=null)
             	mThreshMat.release();
+            if(mThreshMata!=null)
+            	mThreshMata.release();
+            if(mThreshMatb!=null)
+            	mThreshMatb.release();
             if (mGraySubmat != null)
                 mGraySubmat.release();
             if (mIntermediateMat != null)
@@ -131,9 +198,20 @@ class Sample1View extends SampleViewBase {
             mIntermediateMat = null;
             mHsv = null;
             mThreshMat = null;
+            mThreshMata = null;
+            mThreshMatb = null;
         }
     }
 
+	private Scalar converScalarHsv2Rgba(Scalar hsvColor)
+	{	
+        Mat pointMatRgba = new Mat();
+        Mat pointMatHsv = new Mat(1, 1, CvType.CV_8UC3, hsvColor);
+        Imgproc.cvtColor(pointMatHsv, pointMatRgba, Imgproc.COLOR_HSV2RGB_FULL, 4);
+        
+        return new Scalar(pointMatRgba.get(0, 0));
+	}
+    
     @Override
     protected Bitmap processFrame(byte[] data) {
         mYuv.put(0, 0, data);
@@ -152,26 +230,34 @@ class Sample1View extends SampleViewBase {
         case VIEW_MODE_BALL:
         	 Imgproc.cvtColor(mYuv, mRgba, Imgproc.COLOR_YUV420sp2RGB, 4);
         	 Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV,0);
-        	 Core.inRange(mHsv, new Scalar(30,30,30), new Scalar(100,255,255), mThreshMat);
+        	 //Core.inRange(mHsv, new Scalar(38,40,10), new Scalar(80,255,255), mThreshMat);
+        	 
+        	 switch(mColorMode){
+	        	 case COLOR_MODE_R:
+	        		 Core.inRange(mHsv, rLowA, rHiA, mThreshMata);
+	        		 Core.inRange(mHsv, rLowB, rHiB, mThreshMatb);
+	        		 Core.bitwise_or(mThreshMata, mThreshMatb, mThreshMat);
+	        		 break;
+	        	default:
+	        		mThreshLow = yLow;
+	        		mThreshHigh = yHi;
+	        		Core.inRange(mHsv, mThreshLow, mThreshHigh, mThreshMat);
+	        		break; 
+        	 }
         	 Imgproc.erode(mThreshMat, mThreshMat,  Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(7,7)));
         	 Imgproc.dilate(mThreshMat, mThreshMat,  Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(7,7)));
-        	 //Imgproc.cvtColor(mThreshMat, mHsv, Imgproc.COLOR_GRAY2RGB);
-        	 //Imgproc.cvtColor(mHsv, mRgba, Imgproc.COLOR_RGB2RGBA);
-        	List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+        	 contours = new ArrayList<MatOfPoint>();
         	
-        	 Mat hierarchy = new Mat(mRgba.size(),CvType.CV_8UC1, new Scalar(0));
+        	 hierarchy = new Mat(mRgba.size(),CvType.CV_8UC1, new Scalar(0));
         	 Imgproc.findContours(mThreshMat, contours, hierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
 
         	 
-        	// Find max contour area
-             double areaMax = 0;
-             double areaCalc;
-             Iterator<MatOfPoint> contIter = contours.iterator();
-             MatOfPoint contMat;
-             MatOfPoint maxMat = null;
-             int iterIndex = 0;
-             int maxIndex = -1;
-             int minArea = 300;
+        	areaMax = 0;
+             contIter = contours.iterator();
+             maxMat = null;
+             iterIndex = 0;
+             maxIndex = -1;
+             minArea = 300;
              while (contIter.hasNext()){
              	contMat = contIter.next();
              	areaCalc = Imgproc.contourArea(contMat);
@@ -184,14 +270,12 @@ class Sample1View extends SampleViewBase {
              }
                        
         	 if(maxIndex >= 0){
-        		 Iterator<Point> pointIter;
         		 Imgproc.drawContours(mRgba, contours,maxIndex, new Scalar(255,0,0));
         		 pointIter = maxMat.toList().iterator();
-        		 Point ballPoint;
-        		 int minX = Integer.MAX_VALUE;
-        		 int minY = Integer.MAX_VALUE;
-        		 int maxX = 0;
-        		 int maxY = 0;
+        		 minX = Integer.MAX_VALUE;
+        		 minY = Integer.MAX_VALUE;
+        		 maxX = 0;
+        		 maxY = 0;
         		 while(pointIter.hasNext())
         		 {
         			 ballPoint = pointIter.next();
@@ -215,6 +299,131 @@ class Sample1View extends SampleViewBase {
         		 //no max point
         		sendPointsUDP(-9999,-9999,-9999,-9999);
         	 }
+        	break;
+        case VIEW_MODE_PYR:
+        	Mat pyrDownMat = new Mat();
+        	Imgproc.cvtColor(mYuv, mRgba, Imgproc.COLOR_YUV420sp2RGB, 4);
+
+        	//Imgproc.pyrDown(mRgba, pyrDownMat);
+        	//Imgproc.pyrDown(pyrDownMat, pyrDownMat);
+        	Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
+        	
+       	 switch(mColorMode){
+	    	 case COLOR_MODE_R:
+	    		 Core.inRange(mHsv, rLowA, rHiA, mThreshMata);
+        		 Core.inRange(mHsv, rLowB, rHiB, mThreshMatb);
+        		 Core.bitwise_or(mThreshMata, mThreshMatb, mThreshMat);
+        		 break;
+	    	 case COLOR_MODE_G:
+	    		Core.inRange(mHsv, gLow, gHi, mThreshMat);
+	    		break;
+	    	 case COLOR_MODE_B:
+	    		Core.inRange(mHsv, bLow, bHi, mThreshMat);
+		    	break;
+	    	 case COLOR_MODE_M:  
+	    	 case COLOR_MODE_O: 
+	    	 case COLOR_MODE_Y:
+	    	 default:
+		    	Core.inRange(mHsv, yLow, yHi, mThreshMat);
+	    		break; 
+		 }
+        	
+       	 	Imgproc.dilate(mThreshMat, mThreshMat, new Mat());
+       	 	
+	       	//Mat pyrUpMat = new Mat();
+	     	//Imgproc.pyrUp(mThreshMat, pyrUpMat);
+	     	//Imgproc.pyrUp(pyrUpMat, pyrUpMat);
+     	
+       	 	//Imgproc.cvtColor(pyrUpMat, mHsv, Imgproc.COLOR_GRAY2RGB);
+       	 	
+       	 contours = new ArrayList<MatOfPoint>();
+     	
+    	 hierarchy = new Mat(mRgba.size(),CvType.CV_8UC1, new Scalar(0));
+    	 Imgproc.findContours(mThreshMat, contours, hierarchy,Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+
+    	 
+    	areaMax = 0;
+         contIter = contours.iterator();
+         maxMat = null;
+         iterIndex = 0;
+         maxIndex = -1;
+         minArea = 300;
+         while (contIter.hasNext()){
+         	contMat = contIter.next();
+         	areaCalc = Imgproc.contourArea(contMat);
+         	if (areaCalc > minArea && areaCalc > areaMax){
+         		areaMax = areaCalc;
+         		maxMat = contMat;
+         		maxIndex = iterIndex;
+            }
+         	iterIndex++;
+         }
+                   
+    	 if(maxIndex >= 0){
+    		 Imgproc.drawContours(mRgba, contours,maxIndex, new Scalar(255,0,0));
+    		 pointIter = maxMat.toList().iterator();
+    		 minX = Integer.MAX_VALUE;
+    		 minY = Integer.MAX_VALUE;
+    		 maxX = 0;
+    		 maxY = 0;
+    		 while(pointIter.hasNext())
+    		 {
+    			 ballPoint = pointIter.next();
+    			 if(ballPoint.x > maxX){
+    				 maxX = (int) Math.round(ballPoint.x);
+    			 }else if(ballPoint.x < minX){
+    				 minX = (int) Math.round(ballPoint.x);
+    			 }
+    			 
+    			 if(ballPoint.y > maxY){
+    				 maxY = (int)Math.round(ballPoint.y);
+    			 }else if(ballPoint.y < minY){
+    				 minY = (int)Math.round(ballPoint.y);
+    			 }
+    			 
+    			 
+    		 }
+    		 Core.rectangle(mRgba, new Point(minX, minY), new Point(maxX, maxY),new Scalar(0, 0, 255), 3); 
+    		 sendPointsUDP(minX, minY, maxX, maxY);
+    	 }else{
+    		 //no max point
+    		sendPointsUDP(-9999,-9999,-9999,-9999);
+    	 }
+       	 	
+       	 	/*
+       	 	Imgproc.cvtColor(mHsv, mRgba, Imgproc.COLOR_RGB2RGBA);
+       	 	*/
+       	 	
+       	 	
+        	break;
+        case VIEW_MODE_SAMPLE:
+        	Rect touchedRect = new Rect();
+ 	        
+ 	        touchedRect.x = mRgba.cols()/2-4;
+ 	        touchedRect.y = mRgba.rows()/2-4;
+
+ 	        touchedRect.width = 8;
+ 	        touchedRect.height = 8;
+ 	        	
+ 	        Mat touchedRegionRgba = mRgba.submat(touchedRect);
+ 	        
+ 	        Mat touchedRegionHsv = new Mat();
+ 	        Imgproc.cvtColor(touchedRegionRgba, touchedRegionHsv, Imgproc.COLOR_RGB2HSV_FULL);
+ 	        
+ 	        // Calculate average color of touched region
+ 	        Scalar mBlobColorHsv = Core.sumElems(touchedRegionHsv);
+ 	        int pointCount = touchedRect.width*touchedRect.height;
+ 	        for (int i = 0; i < mBlobColorHsv.val.length; i++)
+ 	        {
+ 	        	mBlobColorHsv.val[i] /= pointCount;
+ 	        }
+ 	        
+ 	        //Scalar mBlobColorRgba = converScalarHsv2Rgba(mBlobColorHsv);
+ 	       mOverlayText = "(" + (int)mBlobColorHsv.val[0] + ", " + (int)mBlobColorHsv.val[1] + 
+	    			", " + (int)mBlobColorHsv.val[2] + ")";
+ 	        Log.i(TAG, "Touched hsv color: "+ mOverlayText);
+ 	        
+ 	        mViewMode = VIEW_MODE_RGBA;
         	break;
         }
 
@@ -259,4 +468,28 @@ class Sample1View extends SampleViewBase {
 			}
     	  return 0;
     }
+
+	public Scalar getThreshLow() {
+		return mThreshLow;
+	}
+
+	public void setThreshLow(Scalar mThreshLow) {
+		this.mThreshLow = mThreshLow;
+	}
+
+	public Scalar getThreshHigh() {
+		return mThreshHigh;
+	}
+
+	public void setThreshHigh(Scalar mThreshHigh) {
+		this.mThreshHigh = mThreshHigh;
+	}
+
+	public int getColorMode() {
+		return mColorMode;
+	}
+
+	public void setColorMode(int mColorMode) {
+		this.mColorMode = mColorMode;
+	}
 }
