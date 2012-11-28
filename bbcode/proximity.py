@@ -1,85 +1,222 @@
-import os
+import pwm
 import select
 import datetime
+import time
+import signal
+import os
 
-PWM_FREQUENCY = 3 #hz
-MIN_DUTY_NS   = 500000
+from pinout import *
+from claw import Claw
 
-PWM_PATH      = "/sys/class/pwm/"
-GPIO_PATH     = "/sys/class/gpio/"
+# Proximity specific PWM configuration
+PRX_DUTY_NS = 500000
+PRX_PWM_FREQ = 3 #hz
 
-gpio0 = 0
-gpio1 = gpio0+32
-gpio2 = gpio1+32
-gpio3 = gpio2+32
-
-pwm_pins = {
-    "P8_13": { "name": "EHRPWM2B", "gpio": gpio0+23, "mux": "gpmc_ad9", "eeprom": 15, "pwm" : "ehrpwm.2:1"  },
-    "P8_19": { "name": "EHRPWM2A", "gpio": gpio0+22, "mux": "gpmc_ad8", "eeprom": 14, "pwm" : "ehrpwm.2:0"  },
-    "P9_14": { "name": "EHRPWM1A", "gpio": gpio1+18, "mux": "gpmc_a2", "eeprom": 34, "pwm" : "ehrpwm.1:0" },
-    "P9_16": { "name": "EHRPWM1B", "gpio": gpio1+19, "mux": "gpmc_a3", "eeprom": 35, "pwm" : "ehrpwm.1:1" },
-    "P9_31": { "name": "SPI1_SCLK", "gpio": gpio3+14, "mux": "mcasp0_aclkx", "eeprom": 65 , "pwm": "ehrpwm.0:0"},
-    "P9_29": { "name": "SPI1_D0", "gpio": gpio3+15, "mux": "mcasp0_fsx", "eeprom": 61 , "pwm": "ehrpwm.0:1"},
-    "P9_42": { "name": "GPIO0_7", "gpio": gpio0+7, "mux": "ecap0_in_pwm0_out", "eeprom": 4, "pwm": "ecap.0"},
-    "P9_28": { "name": "SPI1_CS0", "gpio": gpio3+17, "mux": "mcasp0_ahclkr", "eeprom": 63, "pwm": "ecap.2" },
-}
-
+SRV_MIN_DUTY_NS = 200000
+SRV_MAX_DUTY_NS = 2000000
+SRV_PWM_FREQ = 50 #hz
+SRV_DEGREE_TO_NS = (SRV_MAX_DUTY_NS - SRV_MIN_DUTY_NS)/180
 
 class Proximity:
-	def attach(self, pin, gpio):
-		if not pin in pwm_pins:
-			raise Exception('Pin ' + pin + 'is not pwm capable')
+	def attach(self, gpio_trig, pwm_pin_serv, gpio):
+		if (not pwm_pin_serv in pwm_pins):
+			raise Exception('Pin ' + pwm_pin_prox + ' and/or ' + pwm_pin_serv + ' is not pwm capable')
 		else:
-			self.__pin = PWM_PATH+pwm_pins[pin]["pwm"]
-			self.__gpio = GPIO_PATH
-			self.__gpioNum = gpio
+			self.__pwm_pin_serv = PWM_PATH+pwm_pins[pwm_pin_serv]["pwm"]	
+			self.__pwm_serv_request = self.__pwm_pin_serv + "/request"
+			self.__pwm_serv_run = self.__pwm_pin_serv + "/run"
+			self.__pwm_serv_duty_ns = self.__pwm_pin_serv + "/duty_ns"
+			self.__pwm_serv_period_freq = self.__pwm_pin_serv + "/period_freq"
 			
-			val = open(self.__pin + "/request").read()
-			if val.find('free') < 0:
-				raise Exception('Pin ' + pin + ' is already in use')
+			self.__gpio = GPIO_PATH+"/gpio"+gpio
+			self.__gpio_num = gpio
+			self.__gpio_direction = self.__gpio + "/direction";
+			self.__gpio_edge = self.__gpio + "/edge";
+			self.__gpio_value = self.__gpio + "/value";
 			
-			open(self.__pin + "/request", 'w').write("1")
-			open(self.__pin + "/run", 'w').write("0")
-			open(self.__pin + "/period_freq", 'w').write(str(PWM_FREQUENCY))
-			open(self.__pin + "/duty_ns", 'w').write(str(MIN_DUTY_NS))
-			open(self.__pin + "/run", 'w').write("1")
+			self.__gpio_trig = GPIO_PATH+"/gpio"+gpio_trig
+			self.__gpio_trig_num = gpio_trig
+			self.__gpio_trig_direction = self.__gpio_trig + "/direction";
+			self.__gpio_trig_edge = self.__gpio_trig + "/edge";
+			self.__gpio_trig_value = self.__gpio_trig + "/value";
+		
+	
 			
-			open(self.__gpio + "/export", 'w').write(self.__gpioNum)
-			open(self.__gpio + "/gpio" + self.__gpioNum + "/direction", 'w').write("in")
-			open(self.__gpio + "/gpio" + self.__gpioNum + "/edge", 'w').write("both")
+		#	val = f_read(self.__pwm_serv_request)
+		#	if val.find('free') < 0:
+		#		raise Exception('Pin ' + self.__pwm_pin_serv + ' is already in use')
+		
+			f_write(GPIO_PATH + "/export", self.__gpio_num)
+			f_write(self.__gpio_direction, "in")
+			#f_write(self.__gpio_edge, "falling")	
+			f_write(self.__gpio_edge, "both")	
 			
-			self.__attached_pwm = True
+			print 'Set gpio trig'	
+			f_write(GPIO_PATH + "/export", self.__gpio_trig_num)
+			f_write(self.__gpio_trig_direction, "out")
+		        f_write(self.__gpio_trig_value, "0")
+	
+			print 'Done set gpio trig'	
+			f_write(self.__pwm_serv_request, "1")
+			f_write(self.__pwm_serv_run, "0")
+			f_write(self.__pwm_serv_period_freq, str(SRV_PWM_FREQ))
+			f_write(self.__pwm_serv_duty_ns, str(SRV_MIN_DUTY_NS))
+			f_write(self.__pwm_serv_run, "1")
+
+			self.__pos = 0
+
+	def write(self, value):
+		f_write(self.__pwm_serv_run, "1")
+		duty_ns = SRV_MIN_DUTY_NS + value * SRV_DEGREE_TO_NS
+		self.__lastValue = value
+		f_write(self.__pwm_serv_duty_ns, str(duty_ns))
+		time.sleep(0.5)
+		f_write(self.__pwm_serv_run, "0")
+
+	def gotoright(self):
+		self.write(75)
+		
+	def gotocenter(self):
+		self.write(125)
+		
+	def gotoleft(self):
+		self.write(175)
+
+	def changepos(self):
+		val = ""
+		if(self.__pos == 0):
+			val = "right"
+			self.gotoright()
+			self.__pos = self.__pos + 1
+		elif(self.__pos == 1):
+			val = "center"
+			self.gotocenter()
+			self.__pos = self.__pos + 1
+		elif(self.__pos == 2):
+			val = "left"
+			self.gotoleft()
+			self.__pos = self.__pos + 1
+		elif(self.__pos == 3):
+			val = "center"
+			self.gotocenter()
+			self.__pos = 0
+		
+		return val
 
 	def start(self):
-		fd = os.open(self.__gpio + "/gpio" + self.__gpioNum + "/value", os.O_RDONLY | os.O_NONBLOCK)
+		pipein, pipeout = os.pipe()
 		
-		READ_ONLY = select.POLLPRI
-		poller = select.poll()
-		poller.register(fd, READ_ONLY)
-		
-		toggle = 0
-		pre = 0
-		post = 0
-		
-		while True:
-			events = poller.poll(-1)
-			
-			os.lseek(fd, 0, 0)
-			
-			if((toggle == 0) and (os.read(fd, 2) == '1\n')):
-				toggle = 1
-				pre = datetime.datetime.now().microsecond
-			
-			if((toggle == 1) and (os.read(fd, 2) == '0\n')):
-				toggle = 0
-				post = datetime.datetime.now().microsecond	
-				print "Delta: ", (post - pre)
-
-	def detach(self):
-		open(self.__pin + "/run", 'w').write("0")
-		open(self.__pin + "/request", 'w').write("0")
-		open(self.__gpio + "/unexport", 'w').write(self.__gpioNum)
-		self.__attached_pwm = False	
+		self.__pid = os.fork()
 	
+		if self.__pid == -1:
+			raise Exception("Fork failed!")
+		if self.__pid == 0:	
+		        f_write(self.__gpio_trig_value,"0")
+			time.sleep(0.0001)	
+			fd = os.open(self.__gpio_value, os.O_RDONLY | os.O_NONBLOCK)
+			#fd = os.open(self.__gpio_value, os.O_RDONLY)
+		
+			READ_ONLY = select.POLLPRI
+			poller = select.poll()
+			poller.register(fd, READ_ONLY)
+			
+			toggle = 0
+			pre = 0
+			post = 0
+			count = 0
+			
+			position = self.changepos()
+			
+		        f_write(self.__gpio_trig_value, "1")
+			while True:	
+				events = poller.poll(-1)
+			
+				os.lseek(fd, 0, 0)
+			
+				if((toggle == 0) and (os.read(fd, 2) == '1\n')):
+					toggle = 1
+					pre = datetime.datetime.now().microsecond
+			
+				elif((toggle == 1) and (os.read(fd, 2) == '0\n')):
+					toggle = 0
+					post = datetime.datetime.now().microsecond
+					f_write(self.__gpio_trig_value, "0")
+					val = "%s %d" % (position, (post - pre))
+					os.write(pipeout, val)
+					post = 0
+					pre = 0
+					count = count + 1
+					if count == 5:
+						position = self.changepos()
+						time.sleep(0.75)
+						count = 0
+					f_write(self.__gpio_trig_value,"1")
+				else:
+					print 'Missed?'
+					f_write(self.__gpio_trig_value, "0")
+					toggle = 0
+					time.sleep(0.0001)
+					f_write(self.__gpio_trig_value, "1")
+		else:
+			return pipein
+
+	def stop(self):
+		os.kill(self.__pid, signal.SIGKILL)
+		 	
+	def detach(self):
+		f_write(self.__pwm_prox_run, "0")
+		f_write(self.__pwm_prox_request, "0")
+			
+		f_write(self.__pwm_serv_run, "0")
+		f_write(self.__pwm_serv_request, "0")
+			
+		f_write(GPIO_PATH + "/unexport", self.__gpio_num)
+
 	def __del__(self):
 		self.detach()
+
+# prox test
+#pwm.enable()
+#prox = Proximity()
+
+#prox.attach("P9_16", "P9_29", "48")
+#pipein = prox.start()
+
+#count = 0
+#while count < 40:
+#	val = os.read(pipein, 64)
+#	print '1: count = %d\nval = %s\n' % (count, val)
+#	count = count + 1
+
+#prox.stop()
+#prox.detach()
+
+#claw_servo = Claw()
+
+#claw_servo.attach("P9_14")
+#claw_servo.openClaw()
+#claw_servo.closeClaw(200)
+#claw_servo.openClaw()
+#claw_servo.closeClaw(100)
+#claw_servo.openClaw()
+#claw_servo.detach()
+
+#prox.attach("P9_16", "P9_29", "48")
+#pipein = prox.start()
+
+#count = 0
+#while count < 40:
+#	val = os.read(pipein, 64)
+#	print '2: count = %d\nval = %s\n' % (count, val)
+#	count = count + 1
+
+#prox.stop()
+#prox.detach()
+
+#print "done killin!"
+#while 1:
+#	prox.gotoright()
+#	prox.gotoleft()
+
+#while 1:
+#	prox.changepos()

@@ -32,7 +32,7 @@ def enable():
 	if(val != 0x2):
 		_setReg(CM_PER_EPWMSS1_CLKCTRL, 0x2)
 		open("/sys/kernel/debug/omap_mux/gpmc_a2", 'w').write("6")
-		open("/sys/kernel/debug/omap_mux/gpmc_a3", 'w').write("6")
+		#open("/sys/kernel/debug/omap_mux/gpmc_a3", 'w').write("6")
 		open("/sys/kernel/debug/omap_mux/mcasp0_aclkx", 'w').write("1")
 		open("/sys/kernel/debug/omap_mux/mcasp0_fsx", 'w').write("1")
 		open("/sys/kernel/debug/omap_mux/gpmc_ad9", 'w').write("4")
