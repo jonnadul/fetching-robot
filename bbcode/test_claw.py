@@ -1,4 +1,5 @@
 import time
+import pwm
 from claw import Claw
 
 pwm.enable()

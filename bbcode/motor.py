@@ -1,137 +1,227 @@
-import os
+import pwm
+import select
+import datetime
 import time
+import signal
+import os
+import ctypes
 
-DEFAULT_DUTY_NS = 2000000 #2 ms
-PWM_FREQUENCY = 50 #hz 
+from mmap import mmap
+import struct
+import enc 
 
-PWM_PATH   = "/sys/class/pwm/"
-GPIO_PATH  = "/sys/class/gpio/"
+from pinout import *
+from claw import Claw
+from proximity import Proximity
 
-gpio0 = 0
-gpio1 = gpio0+32
-gpio2 = gpio1+32
-gpio3 = gpio2+32
-
-
-pwm_pins = {
-    "P8_13": { "name": "EHRPWM2B", "gpio": gpio0+23, "mux": "gpmc_ad9", "eeprom": 15, "pwm" : "ehrpwm.2:1"  },
-    "P8_19": { "name": "EHRPWM2A", "gpio": gpio0+22, "mux": "gpmc_ad8", "eeprom": 14, "pwm" : "ehrpwm.2:0"  },
-    "P9_14": { "name": "EHRPWM1A", "gpio": gpio1+18, "mux": "gpmc_a2", "eeprom": 34, "pwm" : "ehrpwm.1:0" },
-    "P9_16": { "name": "EHRPWM1B", "gpio": gpio1+19, "mux": "gpmc_a3", "eeprom": 35, "pwm" : "ehrpwm.1:1" },
-    "P9_31": { "name": "SPI1_SCLK", "gpio": gpio3+14, "mux": "mcasp0_aclkx", "eeprom": 65 , "pwm": "ehrpwm.0:0"},
-    "P9_29": { "name": "SPI1_D0", "gpio": gpio3+15, "mux": "mcasp0_fsx", "eeprom": 61 , "pwm": "ehrpwm.0:1"},
-    "P9_42": { "name": "GPIO0_7", "gpio": gpio0+7, "mux": "ecap0_in_pwm0_out", "eeprom": 4, "pwm": "ecap.0"},
-    "P9_28": { "name": "SPI1_CS0", "gpio": gpio3+17, "mux": "mcasp0_ahclkr", "eeprom": 63, "pwm": "ecap.2" },
-}
-
-class Motor:
-	def attach(self, pinOne, pinTwo, gpioLF, gpioLB, gpioRF, gpioRB):
-		if (not pinOne in pwm_pins) or (not pinTwo in pwm_pins):
-			raise Exception("Pins " + pinOne + " or " + pinTwo  + " is not pwm capable");
-		else:
-			self.__pwmLeft = PWM_PATH+pwm_pins[pinOne]["pwm"]
-			self.__pwmRight = PWM_PATH+pwm_pins[pinTwo]["pwm"]
-
-			self.__gpio = GPIO_PATH
-			self.__gpioNumLF = gpioLF
-			self.__gpioNumLB = gpioLB
-			self.__gpioNumRF = gpioRF
-			self.__gpioNumRB = gpioRB
-			
-			valOne = open(self.__pwmLeft + "/request").read()
-			valTwo = open(self.__pwmRight + "/request").read()
-
-			if (valOne.find('free') < 0) or (valTwo.find('free') < 0):
-				raise Exception("Pins " + pinOne + " or " + pinTwo + " is already in use")
-			
-			open(self.__pwmLeft + "/request", 'w').write("1")
-			open(self.__pwmLeft + "/run", 'w').write("0")
-			open(self.__pwmLeft + "/period_freq", 'w').write(str(PWM_FREQUENCY))
-			open(self.__pwmLeft + "/duty_ns", 'w').write("0")
-				  
-			open(self.__pwmRight + "/request", 'w').write("1")
-			open(self.__pwmRight + "/run", 'w').write("0")
-			open(self.__pwmRight + "/period_freq", 'w').write(str(PWM_FREQUENCY))
-			open(self.__pwmRight + "/duty_ns", 'w').write("0")
+#Motor specific PWM configuration
+MTR_MIN_DUTY_NS = 0
+MTR_MAX_DUTY_NS = 8000000 #2 ms
+MTR_PWM_FREQ = 50 #hz 
 	
-			open(self.__gpio + "/export", 'w').write(self.__gpioNumLF)
-			open(self.__gpio + "/gpio" + self.__gpioNumLF + "/direction", 'w').write("out")
- 
-			open(self.__gpio + "/export", 'w').write(self.__gpioNumLB)
-			open(self.__gpio + "/gpio" + self.__gpioNumLB + "/direction", 'w').write("out")
-			
-			open(self.__gpio + "/export", 'w').write(self.__gpioNumRF)
-			open(self.__gpio + "/gpio" + self.__gpioNumRF + "/direction", 'w').write("out")
- 
-			open(self.__gpio + "/export", 'w').write(self.__gpioNumRB)
-			open(self.__gpio + "/gpio" + self.__gpioNumRB + "/direction", 'w').write("out")
-			
-			self.__attached_pwm = True
-
-	def move(self, seconds, direction):
-		open(self.__pwmLeft + "/run", 'w').write("0")
-		open(self.__pwmRight + "/run", 'w').write("0")
+class Motor:
+	def attach(self, pwm_pin_left, pwm_pin_right, 
+                   gpio_left_front, gpio_left_back,
+                   gpio_right_front, gpio_right_back):
 		
-		open(self.__pwmLeft + "/duty_ns", 'w').write(str(DEFAULT_DUTY_NS))
-		open(self.__pwmRight + "/duty_ns", 'w').write(str(DEFAULT_DUTY_NS))
+		if (not pwm_pin_left in pwm_pins) or (not pwm_pin_right in pwm_pins):
+			raise Exception('Pin ' + pwm_pin_left + ' and/or ' + pwm_pin_right + ' is not pwm capable')
+		else:
+			self.__pwm_pin_left = PWM_PATH+pwm_pins[pwm_pin_left]["pwm"]	
+			self.__pwm_left_request = self.__pwm_pin_left + "/request"
+			self.__pwm_left_run = self.__pwm_pin_left + "/run"
+			self.__pwm_left_duty_ns = self.__pwm_pin_left + "/duty_ns"
+			self.__pwm_left_period_freq = self.__pwm_pin_left + "/period_freq"
+			
+			self.__pwm_pin_right = PWM_PATH+pwm_pins[pwm_pin_right]["pwm"]	
+			self.__pwm_right_request = self.__pwm_pin_right + "/request"
+			self.__pwm_right_run = self.__pwm_pin_right + "/run"
+			self.__pwm_right_duty_ns = self.__pwm_pin_right + "/duty_ns"
+			self.__pwm_right_period_freq = self.__pwm_pin_right + "/period_freq"
+		
+			self.__gpio_left_front = GPIO_PATH+"/gpio"+gpio_left_front
+			self.__gpio_left_front_num = gpio_left_front
+			self.__gpio_left_front_direction = self.__gpio_left_front + "/direction";
+			self.__gpio_left_front_edge = self.__gpio_left_front + "/edge";
+			self.__gpio_left_front_value = self.__gpio_left_front + "/value";
+			
+			self.__gpio_left_back = GPIO_PATH+"/gpio"+gpio_left_back
+			self.__gpio_left_back_num = gpio_left_back
+			self.__gpio_left_back_direction = self.__gpio_left_back + "/direction";
+			self.__gpio_left_back_edge = self.__gpio_left_back + "/edge";
+			self.__gpio_left_back_value = self.__gpio_left_back + "/value";
+			
+			self.__gpio_right_front = GPIO_PATH+"/gpio"+gpio_right_front
+			self.__gpio_right_front_num = gpio_right_front
+			self.__gpio_right_front_direction = self.__gpio_right_front + "/direction";
+			self.__gpio_right_front_edge = self.__gpio_right_front + "/edge";
+			self.__gpio_right_front_value = self.__gpio_right_front + "/value";
+			
+			self.__gpio_right_back = GPIO_PATH+"/gpio"+gpio_right_back
+			self.__gpio_right_back_num = gpio_right_back
+			self.__gpio_right_back_direction = self.__gpio_right_back + "/direction";
+			self.__gpio_right_back_edge = self.__gpio_right_back + "/edge";
+			self.__gpio_right_back_value = self.__gpio_right_back + "/value";
+				
+			#val = f_read(self.__pwm_left_request)
+			#if val.find('free') < 0:
+			#	raise Exception('Pin ' + self.__pwm_pin_left + ' is already in use')
+			
+			#val = f_read(self.__pwm_right_request)
+			#if val.find('free') < 0:
+			#	raise Exception('Pin ' + self.__pwm_pin_right + ' is already in use')
+			
+			f_write(GPIO_PATH + "/export", self.__gpio_left_front_num)
+			f_write(self.__gpio_left_front_direction, "out")
+			f_write(self.__gpio_left_front_edge, "both")	
+			
+			f_write(GPIO_PATH + "/export", self.__gpio_left_back_num)
+			f_write(self.__gpio_left_back_direction, "out")
+			f_write(self.__gpio_left_back_edge, "both")	
+			
+			f_write(GPIO_PATH + "/export", self.__gpio_right_front_num)
+			f_write(self.__gpio_right_front_direction, "out")
+			f_write(self.__gpio_right_front_edge, "both")	
+			
+			f_write(GPIO_PATH + "/export", self.__gpio_right_back_num)
+			f_write(self.__gpio_right_back_direction, "out")
+			f_write(self.__gpio_right_back_edge, "both")	
+			
+			f_write(self.__pwm_left_request, "1")
+			f_write(self.__pwm_left_run, "0")
+			f_write(self.__pwm_left_period_freq, str(MTR_PWM_FREQ))
+			f_write(self.__pwm_left_duty_ns, str(MTR_MIN_DUTY_NS))
+			f_write(self.__pwm_left_run, "1")
+			
+			f_write(self.__pwm_right_request, "1")
+			f_write(self.__pwm_right_run, "0")
+			f_write(self.__pwm_right_period_freq, str(MTR_PWM_FREQ))
+			f_write(self.__pwm_right_duty_ns, str(MTR_MIN_DUTY_NS))
+			f_write(self.__pwm_right_run, "1")
+
+			
+	
+
+	def move(self, units, direction):
+		enc.pollEnc()
+		f_write(self.__pwm_left_run, "0") # pwm left
+		f_write(self.__pwm_right_run, "0") # pwm right
+	
+		enc.pollEnc()	
+		f_write(self.__pwm_left_duty_ns, str(MTR_MAX_DUTY_NS)) # pwm left
+		f_write(self.__pwm_right_duty_ns, str(MTR_MAX_DUTY_NS)) # pwm_right
 		
 		if(direction == 'forward'):
-			open(self.__gpio + "/gpio" + self.__gpioNumLF + "/value", 'w').write("0")
-			open(self.__gpio + "/gpio" + self.__gpioNumLB + "/value", 'w').write("1")
-			open(self.__gpio + "/gpio" + self.__gpioNumRF + "/value", 'w').write("0")
-			open(self.__gpio + "/gpio" + self.__gpioNumRB + "/value", 'w').write("1")
+			f_write(self.__gpio_left_front_value, "0") # gpio left front
+			f_write(self.__gpio_left_back_value, "1") # gpio left back
+			f_write(self.__gpio_right_front_value, "0") # gpio right front
+			f_write(self.__gpio_right_back_value, "1") # gpio right back
 		elif(direction == 'backward'):
-			open(self.__gpio + "/gpio" + self.__gpioNumLF + "/value", 'w').write("1")
-			open(self.__gpio + "/gpio" + self.__gpioNumLB + "/value", 'w').write("0")
-			open(self.__gpio + "/gpio" + self.__gpioNumRF + "/value", 'w').write("1")
-			open(self.__gpio + "/gpio" + self.__gpioNumRB + "/value", 'w').write("0")
-		
-		open(self.__pwmLeft + "/run", 'w').write("1")
-		open(self.__pwmRight + "/run", 'w').write("1")
-		
-		time.sleep(seconds)
-		
-		open(self.__pwmLeft + "/run", 'w').write("0")
-		open(self.__pwmRight + "/run", 'w').write("0")
-	
-	def direction(self, seconds, direction):
-		open(self.__pwmLeft + "/run", 'w').write("0")
-		open(self.__pwmRight + "/run", 'w').write("0")
-		
-		open(self.__pwmLeft + "/duty_ns", 'w').write(str(DEFAULT_DUTY_NS))
-		open(self.__pwmRight + "/duty_ns", 'w').write(str(DEFAULT_DUTY_NS))
-		
-		if(direction == 'right'):
-			open(self.__gpio + "/gpio" + self.__gpioNumLF + "/value", 'w').write("1")
-			open(self.__gpio + "/gpio" + self.__gpioNumLB + "/value", 'w').write("0")
-			open(self.__gpio + "/gpio" + self.__gpioNumRF + "/value", 'w').write("0")
-			open(self.__gpio + "/gpio" + self.__gpioNumRB + "/value", 'w').write("1")
+			f_write(self.__gpio_left_front_value, "1") # gpio left front
+			f_write(self.__gpio_left_back_value, "0") # gpio left back
+			f_write(self.__gpio_right_front_value, "1") # gpio right front
+			f_write(self.__gpio_right_back_value, "0") # gpio right back
+		elif(direction == 'right'):
+			f_write(self.__gpio_left_front_value, "1") # gpio left front
+			f_write(self.__gpio_left_back_value, "0") # gpio left back
+			f_write(self.__gpio_right_front_value, "0") # gpio right front
+			f_write(self.__gpio_right_back_value, "1") # gpio right back
 		elif(direction == 'left'):
-			open(self.__gpio + "/gpio" + self.__gpioNumLF + "/value", 'w').write("0")
-			open(self.__gpio + "/gpio" + self.__gpioNumLB + "/value", 'w').write("1")
-			open(self.__gpio + "/gpio" + self.__gpioNumRF + "/value", 'w').write("1")
-			open(self.__gpio + "/gpio" + self.__gpioNumRB + "/value", 'w').write("0")
+			f_write(self.__gpio_left_front_value, "0") # gpio left front
+			f_write(self.__gpio_left_back_value, "1") # gpio left back
+			f_write(self.__gpio_right_front_value, "1") # gpio right front
+			f_write(self.__gpio_right_back_value, "0") # gpio right back
+	
+	
 		
-		open(self.__pwmLeft + "/run", 'w').write("1")
-		open(self.__pwmRight + "/run", 'w').write("1")
+		encoders = enc.pollEnc()
+		prev_left = encoders.Left
+		prev_right = encoders.Right
+
+		post_left = ctypes.c_uint32(prev_left + units).value
+		post_right = ctypes.c_uint32(prev_right + units).value
+		print "Moving prev " + hex(prev_left) + " post " + hex(post_left)
+		f_write(self.__pwm_left_run, "1") # pwm left
+		f_write(self.__pwm_right_run, "1") # pwm right
 		
-		time.sleep(seconds)
+		end = 0
+		while(end == 0):
+			encoders = enc.pollEnc()
+			curr_left = encoders.Left 
+			curr_right = encoders.Right 
 		
-		open(self.__pwmLeft + "/run", 'w').write("0")
-		open(self.__pwmRight + "/run", 'w').write("0")
+			if(curr_left >= post_left and curr_right >= post_right):
+				end = 1
+		
+		f_write(self.__pwm_left_run, "0") # pwm left
+		f_write(self.__pwm_right_run, "0") # pwm right
 	
 	def detach(self):
-		open(self.__pwmLeft + "/run", 'w').write("0")
-		open(self.__pwmRight + "/run", 'w').write("0")
+		f_write(self.__pwm_left_run, "0")
+		f_write(self.__pwm_left_request, "0")
 		
-		open(self.__pwmLeft + "/request", 'w').write("0")
-		open(self.__pwmRight + "/request", 'w').write("0")
+		f_write(self.__pwm_right_run, "0")
+		f_write(self.__pwm_right_request, "0")
 		
-		open(self.__gpio + "/unexport", 'w').write(self.__gpioNumLF)
-		open(self.__gpio + "/unexport", 'w').write(self.__gpioNumLB)
-		open(self.__gpio + "/unexport", 'w').write(self.__gpioNumRF)
-		open(self.__gpio + "/unexport", 'w').write(self.__gpioNumRB)
-		self.__attached_pwm = False
-	
+		f_write(GPIO_PATH + "/unexport", self.__gpio_left_front_num)
+		f_write(GPIO_PATH + "/unexport", self.__gpio_left_back_num)
+		f_write(GPIO_PATH + "/unexport", self.__gpio_right_front_num)
+		f_write(GPIO_PATH + "/unexport", self.__gpio_right_back_num)
+		
 	def __del__(self):
-		self.detach()
+		self.detach()	
+
+# motor test
+#ipwm.enable()
+
+print 'Enabled motor'
+mtr = Motor()
+mtr.attach("P9_29", "P9_31", "49", "117", "115", "60")
+
+os.system('./map')
+enc.pollEnc()
+enc.pollEnc()
+#print 'Enabled prox'
+#prox = Proximity()
+#prox.attach("P9_16", "P9_29", "48")
+#pipein = prox.start()
+
+print 'Count 1'
+count = 0
+while count < 1:
+	#val = os.read(pipein, 64)
+	#print '1: count = %d\nval = %s\n' % (count, val)
+	mtr.move(3, "left")
+	mtr.move(3, "right")
+	count = count + 1
+
+#prox.stop()
+#prox.detach()
+
+#print 'Enabled claw'
+#claw_servo = Claw()
+#claw_servo.attach("P9_14")
+#claw_servo.openClaw()
+#claw_servo.closeClaw(200)
+#claw_servo.openClaw()
+#claw_servo.closeClaw(100)
+#claw_servo.openClaw()
+#claw_servo.detach()
+
+#prox.attach("P9_16", "P9_29", "48")
+#pipein = prox.start()
+
+print 'Count 2'
+#count = 0
+#while count < 40:
+#	#val = os.read(pipein, 64)
+	#print '2: count = %d\nval = %s\n' % (count, val)
+#	mtr.move(3, "left")
+#	mtr.move(3, "right")
+#	count = count + 1
+
+#prox.stop()
+#prox.detach()
+
+mtr.detach()
+print "done killin!"

@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <ncurses.h>
+//#define DO_WRITE
 #define CM_PER_REG_START 0x44e00000
 #define CM_PER_REG_LENGTH 1024
 #define CM_PER_EPWMSS0_CLKCTRL_OFFSET 0xd4
@@ -15,7 +16,6 @@
 #define CM_PER_EPWMSS2_CLKCTRL_OFFSET 0xd8
 #define PWM_CLOCK_ENABLE 0x2
 #define PWM_CLOCK_DISABLE 0x0
-
 #define EPWMSS1_REG_START 0x48302000
 #define EPWMSS2_REG_START 0x48304000
 #define EPWMSS_REG_LENGTH 0x4000	/* Encapsulates 0x4830_2000 to 0x4830_5fff for pwm1 and pwm 2 */
@@ -84,7 +84,8 @@ main (int argc, char **argv)
   int eqep_offset;
   volatile uint32_t *cm_per_regs;
   volatile uint32_t *eqep_regs;
-  for (i = 0; i < PWM_LIST_MAX; ++i)
+#ifdef DO_WRITE  
+for (i = 0; i < PWM_LIST_MAX; ++i)
     {
       enable_list[i] = -1;
       disable_list[i] = -1;
@@ -100,6 +101,7 @@ main (int argc, char **argv)
   /* uart4: mode2 = eqep_in */
   i = system ("echo 22 > /sys/kernel/debug/omap_mux/lcd_data12");	/* eqep1a_in = gpio0_8 = p8-35 */
   i = system ("echo 22 > /sys/kernel/debug/omap_mux/lcd_data13");	/* eqep1b_in = gpio0_9 = p8-33 */
+#endif
   /* Open memory map */
   dev_mem_fd = open ("/dev/mem", O_RDWR);
   if (dev_mem_fd == -1)
@@ -107,7 +109,7 @@ main (int argc, char **argv)
       perror ("open failed");
       return 1;
     }
-#if 1
+#ifdef DO_WRITE
   /* Create memory object */
   cm_per_regs = (volatile uint32_t *) mmap (NULL, CM_PER_REG_LENGTH,
 					    PROT_READ | PROT_WRITE,
@@ -134,7 +136,6 @@ main (int argc, char **argv)
 
   munmap ((void *) cm_per_regs, CM_PER_REG_LENGTH);
 #endif
-
   eqep_regs = (volatile uint32_t *) mmap (NULL, EPWMSS_REG_LENGTH,
 					  PROT_READ | PROT_WRITE, MAP_SHARED,
 					  dev_mem_fd, EPWMSS1_REG_START);
@@ -146,16 +147,18 @@ main (int argc, char **argv)
     }
   for (eq = 0; eq < 2; eq++)
     {
-      eqep_offset = eqep_offset_list[eq];
+	eqep_offset = eqep_offset_list[eq];
+      #ifdef DO_WRITE
       eqep_regs[(eqep_offset + QPOSMAX) >> 2] = 0xFFFFFFFF;
-      eqep_regs[(eqep_offset + QPOSINIT) >> 2] = 0xDEADBEEF;
+      eqep_regs[(eqep_offset + QPOSINIT) >> 2] = 0x0 /*0xDEADBEEF*/;
       eqep_regs[(eqep_offset + QUPRD) >> 2] = 100000;
       eqep_regs[(eqep_offset + QDECCTL) >> 2] = 0x808A0000;
       eqep_regs[(eqep_offset + QCAPCTL) >> 2] = 0x0;
       eqep_regs[(eqep_offset + QPOSCTL) >> 2] = 0x0;
       eqep_regs[(eqep_offset + QEINT) >> 2] = 0x0;
       printf ("wrote to %d\n", (eqep_offset + QDECCTL) >> 2);
-      for (i = 0; i < EQEP_REG_LENGTH / 4; i++)
+      #endif
+	for (i = 0; i < EQEP_REG_LENGTH / 4; i++)
 	{
 	  printf ("%d %x %x\n", (eqep_offset >> 2) + i, i << 2,
 		  eqep_regs[(eqep_offset >> 2) + i]);
@@ -166,14 +169,9 @@ main (int argc, char **argv)
   count2 = last_count2 = eqep_regs[(EQEP2_OFFSET + QPOSCNT) >> 2];
   printf ("count: %x %x\n", count, count2);
   timeout (0);
-
+#if 1
   while (1)
     {
-      int c = getch ();
-      if (c == 27)
-	{
-	  break;
-	}
 
       count = eqep_regs[(EQEP1_OFFSET + QPOSCNT) >> 2];
       count2 = eqep_regs[(EQEP2_OFFSET + QPOSCNT) >> 2];
@@ -185,7 +183,7 @@ main (int argc, char **argv)
 	}
 
     }
-
+#endif
 out:
   munmap ((void *) cm_per_regs, CM_PER_REG_LENGTH);
   close (dev_mem_fd);
