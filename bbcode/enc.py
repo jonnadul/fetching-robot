@@ -22,6 +22,10 @@ EPWM2_BASE = 0x48304200 - MMAP_OFFSET
 EQEP0_BASE = 0x48300180 - MMAP_OFFSET
 EQEP1_BASE = 0x48302180 - MMAP_OFFSET
 EQEP2_BASE = 0x48304180 - MMAP_OFFSET
+DMTIMER2_BASE = 0x48040000 - MMAP_OFFSET
+DMTIMER2_ID     = DMTIMER2_BASE + 0x0
+DMTIMER2_TCTRLR = DMTIMER2_BASE + 0x38
+DMTIMER2_TCNTRR = DMTIMER2_BASE + 0x3C
 QPOSCNT = 0x0
 QPOSINIT = 0x4
 QPOSMAX = 0x8
@@ -69,3 +73,14 @@ def pollEnc():
 	encoders = Encoder(Left = _getReg(EQEP2_BASE+QPOSCNT), Right = _getReg(EQEP1_BASE+QPOSCNT))
 	#print 'Count: ' + hex(encoders.Left) + ' ' + hex(encoders.Right)
 	return encoders
+def setEnc(Left, Right):
+	_setReg(EQEP2_BASE+QPOSCNT, Left)
+	_setReg(EQEP1_BASE+QPOSCNT, Right)
+def startTimer():
+	_setReg(DMTIMER2_TCNTRR, 0x00000000)
+	_setReg(DMTIMER2_TCTRLR, 0x03)
+def stopTimer():
+	_setReg(DMTIMER2_TCTRLR, 0x02)
+	return _getReg(DMTIMER2_TCNTRR)
+def getTimerID():
+	return _getReg(DMTIMER2_ID)

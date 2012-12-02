@@ -1,7 +1,9 @@
 from struct import *
+from collections import namedtuple
 import socket
 UDP_PORT = 54259
 
+Position = namedtuple('ObjectPosition', 'ULX ULY BRX BRY')
 class PhoneStream:
 	def attach(self):
 		self.__sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -25,6 +27,8 @@ class PhoneStream:
 	def getPacket(self):
 		numrecvd = 0
 		numvalid = 0
+		
+		positions = []
 		while 1:
 			try:	
 				data, addr = self.__sock.recvfrom(1024)
@@ -33,7 +37,8 @@ class PhoneStream:
 				numrecvd += 1 
 				if ulx != -9999:
 					numvalid +=1
-				print str(ulx), str(uly), str(brx), str(bry)
+				#print str(ulx), str(uly), str(brx), str(bry)
+				positions.append(Position(ULX = ulx, ULY = uly, BRX = brx, BRY = bry))
 			except socket.error as msg:
-				print 'Rec: ' + str(numrecvd) + ' Val: ' + str(numvalid)
-				return
+				#print 'Rec: ' + str(numrecvd) + ' Val: ' + str(numvalid)
+				return positions

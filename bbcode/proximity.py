@@ -48,8 +48,8 @@ class Proximity:
 		
 			f_write(GPIO_PATH + "/export", self.__gpio_num)
 			f_write(self.__gpio_direction, "in")
-			#f_write(self.__gpio_edge, "falling")	
-			f_write(self.__gpio_edge, "both")	
+			f_write(self.__gpio_edge, "falling")	
+			#f_write(self.__gpio_edge, "both")	
 			
 			print 'Set gpio trig'	
 			f_write(GPIO_PATH + "/export", self.__gpio_trig_num)
@@ -85,11 +85,11 @@ class Proximity:
 	def changepos(self):
 		val = ""
 		if(self.__pos == 0):
-			val = "right"
+			val = "rght"
 			self.gotoright()
 			self.__pos = self.__pos + 1
 		elif(self.__pos == 1):
-			val = "center"
+			val = "cntr"
 			self.gotocenter()
 			self.__pos = self.__pos + 1
 		elif(self.__pos == 2):
@@ -97,7 +97,7 @@ class Proximity:
 			self.gotoleft()
 			self.__pos = self.__pos + 1
 		elif(self.__pos == 3):
-			val = "center"
+			val = "cntr"
 			self.gotocenter()
 			self.__pos = 0
 		
@@ -112,51 +112,42 @@ class Proximity:
 			raise Exception("Fork failed!")
 		if self.__pid == 0:	
 		        f_write(self.__gpio_trig_value,"0")
-			time.sleep(0.0001)	
-			fd = os.open(self.__gpio_value, os.O_RDONLY | os.O_NONBLOCK)
-			#fd = os.open(self.__gpio_value, os.O_RDONLY)
+			fd = os.open(self.__gpio_value, os.O_RDONLY)
 		
 			READ_ONLY = select.POLLPRI
 			poller = select.poll()
 			poller.register(fd, READ_ONLY)
 			
-			toggle = 0
 			pre = 0
 			post = 0
 			count = 0
 			
-			position = self.changepos()
+			position = self.changepos()	
 			
+			pre = datetime.datetime.now().microsecond
 		        f_write(self.__gpio_trig_value, "1")
-			while True:	
-				events = poller.poll(-1)
 			
+			while True:
+				events = poller.poll(-1)	
 				os.lseek(fd, 0, 0)
 			
-				if((toggle == 0) and (os.read(fd, 2) == '1\n')):
-					toggle = 1
-					pre = datetime.datetime.now().microsecond
-			
-				elif((toggle == 1) and (os.read(fd, 2) == '0\n')):
-					toggle = 0
+				if(os.read(fd, 2) == '0\n'):
 					post = datetime.datetime.now().microsecond
 					f_write(self.__gpio_trig_value, "0")
-					val = "%s %d" % (position, (post - pre))
-					os.write(pipeout, val)
-					post = 0
-					pre = 0
+				
+					if count != 0:	
+						val = "%s%d" % (position, (post - pre))
+						os.write(pipeout, val)
+
 					count = count + 1
 					if count == 5:
 						position = self.changepos()
-						time.sleep(0.75)
+						time.sleep(1.75)
 						count = 0
+					
+					pre = datetime.datetime.now().microsecond
 					f_write(self.__gpio_trig_value,"1")
-				else:
-					print 'Missed?'
-					f_write(self.__gpio_trig_value, "0")
-					toggle = 0
-					time.sleep(0.0001)
-					f_write(self.__gpio_trig_value, "1")
+					
 		else:
 			return pipein
 

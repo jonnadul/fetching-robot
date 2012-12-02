@@ -8,7 +8,10 @@ phonestream.getPacket()
 
 count = 0
 while count < 32:
-	phonestream.getPacket()
+	positions = phonestream.getPacket()
+
+	for position in positions:
+		print position 
 	time.sleep(0.1)
 	count = count+1
 

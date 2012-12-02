@@ -8,7 +8,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <ncurses.h>
-//#define DO_WRITE
+#define DO_WRITE
 #define CM_PER_REG_START 0x44e00000
 #define CM_PER_REG_LENGTH 1024
 #define CM_PER_EPWMSS0_CLKCTRL_OFFSET 0xd4
@@ -150,7 +150,7 @@ for (i = 0; i < PWM_LIST_MAX; ++i)
 	eqep_offset = eqep_offset_list[eq];
       #ifdef DO_WRITE
       eqep_regs[(eqep_offset + QPOSMAX) >> 2] = 0xFFFFFFFF;
-      eqep_regs[(eqep_offset + QPOSINIT) >> 2] = 0x0 /*0xDEADBEEF*/;
+      eqep_regs[(eqep_offset + QPOSINIT) >> 2] = 0xF0000000 /*0xDEADBEEF*/;
       eqep_regs[(eqep_offset + QUPRD) >> 2] = 100000;
       eqep_regs[(eqep_offset + QDECCTL) >> 2] = 0x808A0000;
       eqep_regs[(eqep_offset + QCAPCTL) >> 2] = 0x0;
@@ -169,7 +169,7 @@ for (i = 0; i < PWM_LIST_MAX; ++i)
   count2 = last_count2 = eqep_regs[(EQEP2_OFFSET + QPOSCNT) >> 2];
   printf ("count: %x %x\n", count, count2);
   timeout (0);
-#if 1
+#if 0
   while (1)
     {
 

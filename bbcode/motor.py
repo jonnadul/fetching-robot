@@ -5,7 +5,7 @@ import time
 import signal
 import os
 import ctypes
-
+from collections import namedtuple
 from mmap import mmap
 import struct
 import enc 
@@ -18,6 +18,8 @@ from proximity import Proximity
 MTR_MIN_DUTY_NS = 0
 MTR_MAX_DUTY_NS = 8000000 #2 ms
 MTR_PWM_FREQ = 50 #hz 
+
+Error = namedtuple('MoveError', 'Left Right Dir')
 	
 class Motor:
 	def attach(self, pwm_pin_left, pwm_pin_right, 
@@ -63,13 +65,13 @@ class Motor:
 			self.__gpio_right_back_edge = self.__gpio_right_back + "/edge";
 			self.__gpio_right_back_value = self.__gpio_right_back + "/value";
 				
-			#val = f_read(self.__pwm_left_request)
-			#if val.find('free') < 0:
-			#	raise Exception('Pin ' + self.__pwm_pin_left + ' is already in use')
+			val = f_read(self.__pwm_left_request)
+			if val.find('free') < 0:
+				raise Exception('Pin ' + self.__pwm_pin_left + ' is already in use')
 			
-			#val = f_read(self.__pwm_right_request)
-			#if val.find('free') < 0:
-			#	raise Exception('Pin ' + self.__pwm_pin_right + ' is already in use')
+			val = f_read(self.__pwm_right_request)
+			if val.find('free') < 0:
+				raise Exception('Pin ' + self.__pwm_pin_right + ' is already in use')
 			
 			f_write(GPIO_PATH + "/export", self.__gpio_left_front_num)
 			f_write(self.__gpio_left_front_direction, "out")
@@ -99,11 +101,42 @@ class Motor:
 			f_write(self.__pwm_right_duty_ns, str(MTR_MIN_DUTY_NS))
 			f_write(self.__pwm_right_run, "1")
 
-			
+	def rotate(self, velocity):
+		f_write(self.__pwm_left_run, "0") # pwm left
+		f_write(self.__pwm_right_run, "0") # pwm right
 	
-
+		if(velocity > 0):
+			#right
+			f_write(self.__gpio_left_front_value, "1") # gpio left front
+			f_write(self.__gpio_left_back_value, "0") # gpio left back
+			f_write(self.__gpio_right_front_value, "0") # gpio right front
+			f_write(self.__gpio_right_back_value, "1") # gpio right back
+		elif(velocity < 0):
+			#left
+			f_write(self.__gpio_left_front_value, "0") # gpio left front
+			f_write(self.__gpio_left_back_value, "1") # gpio left back
+			f_write(self.__gpio_right_front_value, "1") # gpio right front
+			f_write(self.__gpio_right_back_value, "0") # gpio right back
+		
+		if(velocity == 0):
+			f_write(self.__pwm_left_run, "0") # pwm left
+			f_write(self.__pwm_right_run, "0") # pwm right
+		else:
+			if(abs(velocity) > 100):
+				velocity = 100
+	
+			duty_ns = (abs(velocity)/100.0) * MTR_MAX_DUTY_NS;
+			print 'duty_ns = ' + str(int(duty_ns))
+		
+			f_write(self.__pwm_left_duty_ns, str(int(duty_ns))) # pwm left
+			f_write(self.__pwm_right_duty_ns, str(int(duty_ns))) # pwm_right
+		
+			f_write(self.__pwm_left_run, "1") # pwm left
+			f_write(self.__pwm_right_run, "1") # pwm right
+			
 	def move(self, units, direction):
-		enc.pollEnc()
+		enc.setEnc(0xF0000000, 0xF0000000)
+
 		f_write(self.__pwm_left_run, "0") # pwm left
 		f_write(self.__pwm_right_run, "0") # pwm right
 	
@@ -111,36 +144,44 @@ class Motor:
 		f_write(self.__pwm_left_duty_ns, str(MTR_MAX_DUTY_NS)) # pwm left
 		f_write(self.__pwm_right_duty_ns, str(MTR_MAX_DUTY_NS)) # pwm_right
 		
+		units_left = 0
+		units_right = 0	
 		if(direction == 'forward'):
+			units_left = units
+			units_right = units
 			f_write(self.__gpio_left_front_value, "0") # gpio left front
 			f_write(self.__gpio_left_back_value, "1") # gpio left back
 			f_write(self.__gpio_right_front_value, "0") # gpio right front
 			f_write(self.__gpio_right_back_value, "1") # gpio right back
 		elif(direction == 'backward'):
+			units_left = -1 * units
+			units_right = -1 * units
 			f_write(self.__gpio_left_front_value, "1") # gpio left front
 			f_write(self.__gpio_left_back_value, "0") # gpio left back
 			f_write(self.__gpio_right_front_value, "1") # gpio right front
 			f_write(self.__gpio_right_back_value, "0") # gpio right back
 		elif(direction == 'right'):
+			units_left = -1 * units
+			units_right = 1 * units
 			f_write(self.__gpio_left_front_value, "1") # gpio left front
 			f_write(self.__gpio_left_back_value, "0") # gpio left back
 			f_write(self.__gpio_right_front_value, "0") # gpio right front
 			f_write(self.__gpio_right_back_value, "1") # gpio right back
 		elif(direction == 'left'):
+			units_left = 1 * units
+			units_right = -1 * units
 			f_write(self.__gpio_left_front_value, "0") # gpio left front
 			f_write(self.__gpio_left_back_value, "1") # gpio left back
 			f_write(self.__gpio_right_front_value, "1") # gpio right front
 			f_write(self.__gpio_right_back_value, "0") # gpio right back
-	
-	
 		
 		encoders = enc.pollEnc()
 		prev_left = encoders.Left
 		prev_right = encoders.Right
 
-		post_left = ctypes.c_uint32(prev_left + units).value
-		post_right = ctypes.c_uint32(prev_right + units).value
-		print "Moving prev " + hex(prev_left) + " post " + hex(post_left)
+		post_left = ctypes.c_uint32(prev_left + units_left).value
+		post_right = ctypes.c_uint32(prev_right + units_right).value
+		
 		f_write(self.__pwm_left_run, "1") # pwm left
 		f_write(self.__pwm_right_run, "1") # pwm right
 		
@@ -149,12 +190,25 @@ class Motor:
 			encoders = enc.pollEnc()
 			curr_left = encoders.Left 
 			curr_right = encoders.Right 
-		
-			if(curr_left >= post_left and curr_right >= post_right):
-				end = 1
-		
+			
+			if(direction == 'forward'):
+				if(curr_left >= post_left or curr_right >= post_right):
+					end = 1
+			elif(direction == 'backward'):
+				if(curr_left <= post_left or curr_right <= post_right):
+					end = 1
+			elif(direction == 'right'):
+				if(curr_left <= post_left or curr_right >= post_right):
+					end = 1
+			elif(direction == 'left'):	
+				if(curr_left >= post_left or curr_right <= post_right):
+					end = 1
+	
+		error = Error(curr_left - post_left, curr_right - post_right, direction)		
 		f_write(self.__pwm_left_run, "0") # pwm left
 		f_write(self.__pwm_right_run, "0") # pwm right
+		
+		return error;
 	
 	def detach(self):
 		f_write(self.__pwm_left_run, "0")
@@ -174,54 +228,46 @@ class Motor:
 # motor test
 #ipwm.enable()
 
-print 'Enabled motor'
-mtr = Motor()
-mtr.attach("P9_29", "P9_31", "49", "117", "115", "60")
+#print 'Enabled motor'
+#mtr = Motor()
+#mtr.attach("P9_29", "P9_31", "49", "117", "115", "60")
 
-os.system('./map')
-enc.pollEnc()
-enc.pollEnc()
-#print 'Enabled prox'
-#prox = Proximity()
-#prox.attach("P9_16", "P9_29", "48")
-#pipein = prox.start()
+#os.system('./map')
+#enc.pollEnc()
 
-print 'Count 1'
-count = 0
-while count < 1:
-	#val = os.read(pipein, 64)
-	#print '1: count = %d\nval = %s\n' % (count, val)
-	mtr.move(3, "left")
-	mtr.move(3, "right")
-	count = count + 1
+#count = -100.0
+#while count <= 100.0:
+#	mtr.rotate(count)
+#	time.sleep(0.5)
+#	count += 10.0
 
-#prox.stop()
-#prox.detach()
-
-#print 'Enabled claw'
-#claw_servo = Claw()
-#claw_servo.attach("P9_14")
-#claw_servo.openClaw()
-#claw_servo.closeClaw(200)
-#claw_servo.openClaw()
-#claw_servo.closeClaw(100)
-#claw_servo.openClaw()
-#claw_servo.detach()
-
-#prox.attach("P9_16", "P9_29", "48")
-#pipein = prox.start()
-
-print 'Count 2'
 #count = 0
-#while count < 40:
-#	#val = os.read(pipein, 64)
-	#print '2: count = %d\nval = %s\n' % (count, val)
-#	mtr.move(3, "left")
-#	mtr.move(3, "right")
+#while count < 100:
+#	error = mtr.move(40, "forward")
+#	print  'Forward '
+#	print error
+#	print '\n'
+#	print '\n'
+#	time.sleep(1)
+#	error = mtr.move(40, "backward")
+#	print  'Backward '
+#	print error
+#	print '\n'
+#	print '\n'
+#	time.sleep(1)
+#	error = mtr.move(80, "right")
+#	print  'Right '
+#	print error
+#	print '\n'
+#	print '\n'
+#	time.sleep(1)
+#	error = mtr.move(80, "left")
+#	print  'Left '
+#	print error
+#	print '\n'
+#	print '\n'
+#	time.sleep(1)
 #	count = count + 1
 
-#prox.stop()
-#prox.detach()
-
-mtr.detach()
-print "done killin!"
+#mtr.detach()
+#print "done killin!"
