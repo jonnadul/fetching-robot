@@ -9,8 +9,11 @@ import pwm
 MIN_BALL_AREA = 800
 MAX_BALL_AREA = 80000
 
-CAM_IMG_WIDTH = 718
-CAM_IMG_HEIGHT = 478
+CAM_IMG_WIDTH = 718.0
+CAM_IMG_HEIGHT = 478.0
+CAM_IMG_DEADZONE = 10.0
+MOTOR_DRIVE_LO = 50.0
+MOTOR_DRIVE_HI = 100.0
 
 class Robot:
 	def robot_init(self):
@@ -57,10 +60,10 @@ class Robot:
 						print 'Center = ' + str(center)
 						print 'Error = ' + str(error_x)
 
-						drive = ((abs(error_x)-10)* (90.0/229.0)) + 10
-						if error_x > 10:
+						drive = ((abs(error_x)-CAM_IMG_DEADZONE)* ((MOTOR_DRIVE_HI-MOTOR_DRIVE_LO)/(CAM_IMG_WIDTH/2.0 - CAM_IMG_DEADZONE))) + MOTOR_DRIVE_LO
+						if error_x > CAM_IMG_DEADZONE:
 							self.__motor.rotate(drive)
-						elif error_x < -10:
+						elif error_x < -1.0*CAM_IMG_DEADZONE:
 							self.__motor.rotate(-1 * drive)
 						else:
 							self.__motor.rotate(0)
