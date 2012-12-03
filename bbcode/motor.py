@@ -16,7 +16,7 @@ from proximity import Proximity
 
 #Motor specific PWM configuration
 MTR_MIN_DUTY_NS = 0
-MTR_MAX_DUTY_NS = 8000000 #2 ms
+MTR_MAX_DUTY_NS = 6000000 #2 ms
 MTR_PWM_FREQ = 50 #hz 
 
 Error = namedtuple('MoveError', 'Left Right Dir')
@@ -209,6 +209,44 @@ class Motor:
 		f_write(self.__pwm_right_run, "0") # pwm right
 		
 		return error;
+	
+	def startForward(self, leftspeed, rightspeed):
+		enc.setEnc(0xF0000000, 0xF0000000)
+
+		f_write(self.__pwm_left_run, "0") # pwm left
+		f_write(self.__pwm_right_run, "0") # pwm right
+	
+		duty_ns_left = (abs(leftspeed)/100.0) * MTR_MAX_DUTY_NS;
+		duty_ns_right = (abs(rightspeed)/100.0) * MTR_MAX_DUTY_NS;
+		print 'duty_ns = ' + str(int(duty_ns_left)) + ',' + str(int(duty_ns_right))
+		
+		f_write(self.__pwm_left_duty_ns, str(int(duty_ns_left))) # pwm left
+		f_write(self.__pwm_right_duty_ns, str(int(duty_ns_right))) # pwm_right
+		
+		
+		f_write(self.__gpio_left_front_value, "0") # gpio left front
+		f_write(self.__gpio_left_back_value, "1") # gpio left back
+		f_write(self.__gpio_right_front_value, "0") # gpio right front
+		f_write(self.__gpio_right_back_value, "1") # gpio right back
+		
+		f_write(self.__pwm_left_run, "1") # pwm left
+		f_write(self.__pwm_right_run, "1") # pwm right
+		
+	
+	def adjustForward(self, leftspeed, rightspeed):
+
+	
+		duty_ns_left = (abs(leftspeed)/100.0) * MTR_MAX_DUTY_NS;
+		duty_ns_right = (abs(rightspeed)/100.0) * MTR_MAX_DUTY_NS;
+		print 'duty_ns = ' + str(int(duty_ns_left)) + ',' + str(int(duty_ns_right))
+		
+		f_write(self.__pwm_left_duty_ns, str(int(duty_ns_left))) # pwm left
+		f_write(self.__pwm_right_duty_ns, str(int(duty_ns_right))) # pwm_right
+	def stopForward(self):
+		
+		f_write(self.__pwm_left_run, "0") # pwm left
+		f_write(self.__pwm_right_run, "0") # pwm right
+		
 	
 	def detach(self):
 		f_write(self.__pwm_left_run, "0")
