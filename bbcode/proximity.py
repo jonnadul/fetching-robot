@@ -126,6 +126,8 @@ class Proximity:
 			
 			pre = datetime.datetime.now().microsecond
 		        f_write(self.__gpio_trig_value, "1")
+		        time.sleep(0.000010)
+			f_write(self.__gpio_trig_value, "0")
 			
 			while True:
 				events = poller.poll(-1)	
@@ -133,7 +135,7 @@ class Proximity:
 			
 				if(os.read(fd, 2) == '0\n'):
 					post = datetime.datetime.now().microsecond
-					f_write(self.__gpio_trig_value, "0")
+					#f_write(self.__gpio_trig_value, "0")
 				
 					if count != 0:	
 						val = "%s%d" % (position, (post - pre))
@@ -147,6 +149,8 @@ class Proximity:
 					
 					pre = datetime.datetime.now().microsecond
 					f_write(self.__gpio_trig_value,"1")
+		        		time.sleep(0.000010)
+					f_write(self.__gpio_trig_value, "0")
 					
 		else:
 			return pipein
@@ -155,8 +159,8 @@ class Proximity:
 		os.kill(self.__pid, signal.SIGKILL)
 		 	
 	def detach(self):
-		f_write(self.__pwm_prox_run, "0")
-		f_write(self.__pwm_prox_request, "0")
+		#f_write(self.__pwm_prox_run, "0")
+		#f_write(self.__pwm_prox_request, "0")
 			
 		f_write(self.__pwm_serv_run, "0")
 		f_write(self.__pwm_serv_request, "0")

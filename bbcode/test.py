@@ -14,25 +14,25 @@ enc.pollEnc()
 print 'Proximity Init'
 
 prox = proximity.Proximity()
-prox.attach("51", "P9_42", "48")
+prox.attach("38", "P9_42", "48")
 pipein = prox.start()
 
-print 'while 1'
+#print 'while 1'
 
-prev_pos = ''
-while 1:
-	val = os.read(pipein,64)
-	pos = val[0:4]
-	dist = val[4:]
-
-	if pos != prev_pos:
-		print ''
-		print ''	
-		prev_pos = pos
+#prev_pos = ''
+#while 1:
+#	val = os.read(pipein,64)
+#	pos = val[0:4]
+#	dist = val[4:]
+#
+#	if pos != prev_pos:
+#		print ''
+#		print ''	
+#		prev_pos = pos
 
 	#print 'val= ' + str(val)
 	#print 'pos= ' + str(pos)
-	print str(dist)
+#	print str(dist)
 		
 
 prox.stop()

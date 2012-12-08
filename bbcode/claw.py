@@ -24,8 +24,8 @@ class Claw:
 			
 
 			val = f_read(self.__pwm_request)
-			if val.find('free') < 0:
-				raise Exception('Pin ' + self.__pwm_pin + ' is already in use')
+			#if val.find('free') < 0:
+			#	raise Exception('Pin ' + self.__pwm_pin + ' is already in use')
 
 			f_write(self.__pwm_request, "1")
 			f_write(self.__pwm_run, "0")
@@ -77,6 +77,7 @@ def claw_close():
 	time.sleep(0.5)
 	claw_servo.detach()
 # claw test
+#os.system('./map')
 #pwm.enable()
 #claw_servo = Claw()
 

@@ -25,9 +25,11 @@ def f_read(file_name):
 	file_value = open(file_name, 'r').read()
 	return file_value
 
-#def f_write_e(file_name, file_value):
-#	file_handle = open(file_name, 'w')
-#	file_handle.write(file_value)
-
+def f_write_e(file_name, file_value):
+	file_handle = open(file_name, 'r+')
+	file_handle.seek(0)
+	file_handle.write(file_value)
+	#file_handle.flush()
+	#file_handle.close()
 def f_write(file_name, file_value):
 	open(file_name, 'w').write(file_value)

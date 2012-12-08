@@ -1,3 +1,5 @@
+import ctypes
+import time
 import datetime
 import proximity 
 import claw
@@ -15,6 +17,7 @@ CAM_IMG_HEIGHT = 478.0
 CAM_IMG_DEADZONE = 10.0
 MOTOR_DRIVE_LO = 50.0
 MOTOR_DRIVE_HI = 100.0
+ENCODER_DEF = 0x40000000
 
 class Robot:
 	def robot_init(self):
@@ -28,7 +31,7 @@ class Robot:
 			
 		#print 'Proximity Sensor Init'
 		#self.__prox =  proximity.Proximity()
-		#self.__prox.attach("51", "P9_42", "48")
+		#self.__prox.attach("38", "P9_42", "48")
 		
 		print 'Motor Init'
 		self.__motor = motor.Motor()
@@ -70,25 +73,30 @@ class Robot:
 							self.__motor.rotate(0)
 				else:
 					self.__motor.rotate(0)
-	def trackPID(self):
+	def trackPID(self, modenum):
 		error_last = 0
 		time_last = datetime.datetime.now().microsecond/1000.0
 		integral = 0
-		kp_hi = 0.1225
-		kp_lo = 0.06225
+		#kp_hi = 0.1225
+		#kp_lo = 0.06225
+		kp_hi = 0.05
+		kp_lo = 0.020
 		kp_thresh = 100
 		ki_thresh = 50
 		ki_hi = 0.0008
 		ki_lo = 0.00077
 		maxint = 100000
 		kd = 1
-		x_goal = CAM_IMG_WIDTH/2.0 - 15.0 
+		x_goal = CAM_IMG_WIDTH/2.0 - 9.0
+		errorlist = [1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000] 
 		while 1:
 			positions = self.__udp.getPacket()
 		        time = datetime.datetime.now().microsecond/1000.0   	
 			length = len(positions)
 			if length > 0:
 				last_pos = positions[length-1]
+				if last_pos.MODE != modenum:
+					return 0
 				if last_pos.ULX != -9999:
 					width = last_pos.BRX - last_pos.ULX
 					height = last_pos.BRY - last_pos.ULY
@@ -101,6 +109,8 @@ class Robot:
 					if area > MIN_BALL_AREA and area < MAX_BALL_AREA:
 						center = last_pos.ULX + (width/2.0)
 						error_x = center - x_goal
+						errorlist.pop(0)
+						errorlist.append(abs(error_x))	
 						dt = abs(time - time_last)
 						
 						if((error_x <= 0 and error_last >= 0) or (error_x >= 0 and error_last <= 0)):
@@ -130,7 +140,11 @@ class Robot:
 							drive = 0;
 							integral = 0;
 							self.__motor.rotate(0)
-							return
+							if(sum(errorlist) < 150):
+								return 1
+							else:
+								print errorlist
+								print 'ERR: ' + str(sum(errorlist))
 						else:
 							drive = kp*error_x + ki*integral +kd*deriv 
 						error_last = error_x
@@ -151,10 +165,10 @@ class Robot:
 		max_error = 70
 		#y_goal = CAM_IMG_HEIGHT -20
 		#top of image = bottom when camera upside down
-		y_goal_top = CAM_IMG_HEIGHT/3.0
+		y_goal_top = CAM_IMG_HEIGHT/2.0 +10
 		y_goal = 20 
 		x_goal = CAM_IMG_WIDTH/2.0 - 15.0 
-		def_speed = 34
+		def_speed = 44
 		speed_left = def_speed
 		speed_right = def_speed
 		self.__motor.startForward(speed_left, speed_right) 
@@ -184,8 +198,8 @@ class Robot:
 						print 'Upper Y = ' + str(ULY)
 						print 'Bott Y = ' + str(BRY) + ' (' + str(y_goal_top) +')'
 						print 'Error = ' + str(error_x) + '('+str(error_last)+')'
-						#if(error_x > max_error):
-						#	return
+						if(error_x > max_error):
+							return 2
 						if(error_x > x_thresh):
 							#positive = left when camera upside down
 							speed_left = def_speed - x_adj_scale*abs(error_x)
@@ -200,68 +214,94 @@ class Robot:
 							self.__motor.adjustForward(speed_left, speed_right) 
 						else:
 							self.__motor.stopForward()
-							return
+							return 1
 				else:
 					self.__motor.adjustForward(0,0)
-	def explore(self):
-		end_loop = 0
-		while not end_loop:
-			# read udp stream to verify existance
-			# of object of interest
+	
+	def explore(self, modenum):
+		#print 'Proximity Sensor Init'
+		self.__prox =  proximity.Proximity()
+		self.__prox.attach("38", "P9_42", "48")
 		
-			end_look = 0
-			while not end_look:
+		while 1:	
+			positions = self.__udp.getPacket()
+			length = len(positions)
+			if length > 0:
+				last_pos = positions[length-1]
+				if last_pos.MODE != modenum:
+					self.__prox.detach()
+					return 0
+			read_count = 1
+				
+			pipein = self.__prox.start()
+			
+			dist_rght = []
+			dist_left = []
+			dist_cntr = []
+				
+			print 'Start count!'	
+			while read_count < 12:
+				obs = os.read(pipein, 64)
+				pos = obs[0:4]
+			
+				if pos == 'rght':
+					print 'Right'
+					print "obs = " + obs[4:]
+					dist_rght.append(obs[4:])
+				elif pos == 'left':
+					print 'Left'
+					print "obs = " + obs[4:]
+					dist_left.append(obs[4:])
+				elif pos == 'cntr':
+					print 'Center'
+					print "obs = " + obs[4:]
+					dist_cntr.append(obs[4:])
+				
+				read_count += 1
 		
-				dist_left = []
-				dist_rght = []
-				dist_cntr = []
-				read_count = 0
-				
-				pipein = self.__prox.start()
+			self.__prox.stop()
 			
-				print 'Start count!'	
-				while read_count < 36:
-					obs = os.read(pipein, 64)
-					pos = obs[0:4]
-				
-					if pos == 'rght':
-						print 'Right'
-						print "obs = " + obs[4:]
-						dist_rght.append(obs[4:])
-					elif pos == 'left':
-						print 'Left'
-						print "obs = " + obs[4:]
-						dist_left.append(obs[4:])
-					elif pos == 'cntr':
-						print 'Center'
-						print "obs = " + obs[4:]
-						dist_cntr.append(obs[4:])
-					
-					read_count += 1
-			
-				self.__prox.stop()
+			count_rght = 0
+			count_cntr = 0
+			count_left = 0
 
-				rght = 0
-				left = 0
-				cntr = 0
-				for dist in dist_rght:
-					if dist > 0 and dist < 4000:
-						rght += 1
-			 
-				for dist in dist_left:
-					if dist > 0 and dist < 4000:
-						left += 1
+			for rght in dist_rght:
+				if int(rght) > 0 and int(rght) <= 5500:
+					count_rght = count_rght + 1
 			
-				for dist in dist_cntr:
-					if dist > 0 and dist < 4000:
-						cntr += 1
+			for cntr in dist_cntr:
+				if int(cntr) > 0 and int(cntr) <= 5500:
+					count_cntr = count_cntr + 1
 			
-				print 'rght = ' + str(rght)
-				print 'left = ' + str(left)
-				print 'cntr = ' + str(cntr)
-				
-				end_look = 1
-			end_loop = 1
+			for left in dist_left:
+				if int(left) > 0 and int(left) <= 5500:
+					count_left = count_left + 1
+			
+			print "count_rght " + str(count_rght)
+			print "count_cntr " + str(count_cntr)
+			print "count_left " + str(count_left)
+		
+			if (count_cntr == 0) or (count_cntr < count_rght and count_cntr < count_left):
+				print "Going Center!"
+				self.__motor.move(100, 'forward')
+			elif (count_rght == 0) or (count_rght < count_cntr and count_rght < count_left):
+				print "Going Right!"
+				self.__motor.move(150,'left')
+			elif (count_left == 0) or (count_left < count_cntr and count_left < count_rght):
+				print "Going Left!"
+				self.__motor.move(150,'right')
+			else:
+				print "Rescanning"
+			
+	def getUDP(self):	
+		positions = self.__udp.getPacket()
+		return positions			 
+	def returnBack(self, encoders):
+		os.system('./map')
+		goal = ctypes.c_uint32(encoders.Left - 0xf0000000).value + ctypes.c_uint32(encoders.Right - 0xf0000000).value
+		goal = goal/2
+		self.__motor.move(goal, 'backward')
+		
 	def robot_kill(self):
 		self.__claw.detach()
 		self.__prox.detach()
@@ -271,8 +311,57 @@ class Robot:
 		self.robot_kill()
 
 robot = Robot()
+print 'Init robot'
 robot.robot_init()
-
-#robot.trackPID()	
-robot.trackForward()
-enc.pollEnc()
+print 'Done robot init'
+while 1:
+	positions = robot.getUDP()
+	length = len(positions)
+	print str(length) + 'packets returned'
+	if length > 0:
+		last_pos = positions[length-1]
+		if last_pos.MODE == 1:
+			# track
+			os.system('./map')
+			robot.trackPID(last_pos.MODE)	
+		elif last_pos.MODE == 2:
+			print '****fetch mode'
+			if 1:
+				# tracking test
+				robot = Robot()
+				robot.robot_init()
+				theclaw = claw.Claw()
+				theclaw.attach("P9_14")
+				theclaw.openClaw()
+				theclaw.detach()
+				#trackpid rotates until object in center
+				os.system('./map')
+				#while 1:
+				#print 'tracking'
+				#while 1:
+				code = robot.trackPID(last_pos.MODE)	
+				if code==1:
+					code2 = robot.trackForward()
+					if code2 == 1:
+						encoders = enc.pollEnc()
+						print encoders
+						theclaw.attach("P9_14")
+						theclaw.closeClaw(100)
+						theclaw.detach()
+						robot.returnBack(encoders)
+						time.sleep(0.5)
+						theclaw.attach("P9_14")
+						theclaw.openClaw()
+						theclaw.detach()
+						print 'End'
+		elif last_pos.MODE == 3:
+			#wall
+			robot.explore(last_pos.MODE)
+		else:
+			print 'sleep'
+			time.sleep(1)
+if 0:
+	# exploring test
+	robot = Robot()
+	robot.robot_init()
+	robot.explore()

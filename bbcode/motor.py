@@ -17,6 +17,7 @@ from proximity import Proximity
 #Motor specific PWM configuration
 MTR_MIN_DUTY_NS = 0
 MTR_MAX_DUTY_NS = 6000000 #2 ms
+MTR_DEF_SPEED = 4500000
 MTR_PWM_FREQ = 50 #hz 
 
 Error = namedtuple('MoveError', 'Left Right Dir')
@@ -26,9 +27,10 @@ class Motor:
                    gpio_left_front, gpio_left_back,
                    gpio_right_front, gpio_right_back):
 		
-		if (not pwm_pin_left in pwm_pins) or (not pwm_pin_right in pwm_pins):
-			raise Exception('Pin ' + pwm_pin_left + ' and/or ' + pwm_pin_right + ' is not pwm capable')
-		else:
+		#if (not pwm_pin_left in pwm_pins) or (not pwm_pin_right in pwm_pins):
+		#	raise Exception('Pin ' + pwm_pin_left + ' and/or ' + pwm_pin_right + ' is not pwm capable')
+		#else:
+		if 1:
 			self.__pwm_pin_left = PWM_PATH+pwm_pins[pwm_pin_left]["pwm"]	
 			self.__pwm_left_request = self.__pwm_pin_left + "/request"
 			self.__pwm_left_run = self.__pwm_pin_left + "/run"
@@ -66,12 +68,12 @@ class Motor:
 			self.__gpio_right_back_value = self.__gpio_right_back + "/value";
 				
 			val = f_read(self.__pwm_left_request)
-			if val.find('free') < 0:
-				raise Exception('Pin ' + self.__pwm_pin_left + ' is already in use')
+			#if val.find('free') < 0:
+			#	raise Exception('Pin ' + self.__pwm_pin_left + ' is already in use')
 			
 			val = f_read(self.__pwm_right_request)
-			if val.find('free') < 0:
-				raise Exception('Pin ' + self.__pwm_pin_right + ' is already in use')
+			#if val.find('free') < 0:
+			#	raise Exception('Pin ' + self.__pwm_pin_right + ' is already in use')
 			
 			f_write(GPIO_PATH + "/export", self.__gpio_left_front_num)
 			f_write(self.__gpio_left_front_direction, "out")
@@ -135,14 +137,16 @@ class Motor:
 			f_write(self.__pwm_right_run, "1") # pwm right
 			
 	def move(self, units, direction):
+		print 'Setting Encoders'
+		print 'Going ' + str(units) + ' ' + direction
 		enc.setEnc(0xF0000000, 0xF0000000)
 
 		f_write(self.__pwm_left_run, "0") # pwm left
 		f_write(self.__pwm_right_run, "0") # pwm right
 	
 		enc.pollEnc()	
-		f_write(self.__pwm_left_duty_ns, str(MTR_MAX_DUTY_NS)) # pwm left
-		f_write(self.__pwm_right_duty_ns, str(MTR_MAX_DUTY_NS)) # pwm_right
+		f_write(self.__pwm_left_duty_ns, str(MTR_DEF_SPEED)) # pwm left
+		f_write(self.__pwm_right_duty_ns, str(MTR_DEF_SPEED)) # pwm_right
 		
 		units_left = 0
 		units_right = 0	
@@ -154,6 +158,7 @@ class Motor:
 			f_write(self.__gpio_right_front_value, "0") # gpio right front
 			f_write(self.__gpio_right_back_value, "1") # gpio right back
 		elif(direction == 'backward'):
+			print 'Established going backwards'
 			units_left = -1 * units
 			units_right = -1 * units
 			f_write(self.__gpio_left_front_value, "1") # gpio left front
@@ -181,7 +186,7 @@ class Motor:
 
 		post_left = ctypes.c_uint32(prev_left + units_left).value
 		post_right = ctypes.c_uint32(prev_right + units_right).value
-		
+		print 'PR PL ' + hex(post_right) + ' ' + hex(post_left)	
 		f_write(self.__pwm_left_run, "1") # pwm left
 		f_write(self.__pwm_right_run, "1") # pwm right
 		
@@ -197,6 +202,7 @@ class Motor:
 			elif(direction == 'backward'):
 				if(curr_left <= post_left or curr_right <= post_right):
 					end = 1
+					print 'Ending'
 			elif(direction == 'right'):
 				if(curr_left <= post_left or curr_right >= post_right):
 					end = 1
