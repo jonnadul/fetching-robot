@@ -34,6 +34,10 @@ public class Sample1Java extends Activity {
     private MenuItem            mItemPreviewRGBA;
     private MenuItem            mItemPreviewHSV;
     private MenuItem            mItemPreviewBall;
+    private MenuItem			mItemFetch;
+    private MenuItem			mItemTrack;
+    private MenuItem			mItemExplore;
+    private MenuItem			mItemStop;
     private MenuItem			mItemCommand;
     private MenuItem 			mItemPreviewPyr;
     private Sample1View         mView;
@@ -42,7 +46,7 @@ public class Sample1Java extends Activity {
     private MenuItem			mR;
     private MenuItem			mB;
     private MenuItem			mSample;
-    
+    private MenuItem			mFlash;
 
     private BaseLoaderCallback  mOpenCVCallBack = new BaseLoaderCallback(this) {
         @Override
@@ -72,6 +76,8 @@ public class Sample1Java extends Activity {
                              objstring = objstring.toLowerCase();
                              isr.close ( ) ;
                              mView.setOverlayText(objstring);
+                             
+                             /* Determine color to fetch */
                              if(objstring.contains("yellow")){
                             	 mView.setViewMode(Sample1View.VIEW_MODE_PYR);
                             	 mView.setColorMode(Sample1View.COLOR_MODE_Y);
@@ -87,7 +93,19 @@ public class Sample1Java extends Activity {
                              }else if(objstring.contains("pink")){
                             	 mView.setViewMode(Sample1View.VIEW_MODE_PYR);
                             	 mView.setColorMode(Sample1View.COLOR_MODE_M);
-                             }                         	
+                             } 
+                             
+                             /*determine whether we are fetching, tracking, or idle */
+                             if(objstring.contains("fetch")){
+                            	 mView.setRobotMode(Sample1View.ROBOT_MODE_FETCH);
+                             }else if(objstring.contains("track")){
+                            	 mView.setRobotMode(Sample1View.ROBOT_MODE_TRACK);
+                             }else if(objstring.contains("stop")){
+                            	 mView.setRobotMode(Sample1View.ROBOT_MODE_STOP);
+                             }else if(objstring.contains("wall") || objstring.contains("explore")){
+                            	 mView.setRobotMode(Sample1View.ROBOT_MODE_WALL);
+                             }
+                             
                          } catch ( IOException ioe ) {
                              ioe.printStackTrace ( ) ;
                              mView.setOverlayText(objstring);
@@ -105,6 +123,44 @@ public class Sample1Java extends Activity {
                               e.printStackTrace ( ) ;
                           }
                     	  mView.setOverlayText("ball");
+                    }
+                    
+                    File flashfile = getFileStreamPath("robotflash.txt");
+                    if(flashfile.exists()){
+                    	 String flashstring = "" ;
+                         try {
+                             FileInputStream fIn = openFileInput ( "robotflash.txt" ) ;
+                             InputStreamReader isr = new InputStreamReader ( fIn ) ;
+                             BufferedReader buffreader = new BufferedReader ( isr ) ;
+
+                             String readString = buffreader.readLine ( ) ;
+                             while ( readString != null ) {
+                            	 flashstring= flashstring + readString ;
+                                 readString = buffreader.readLine ( ) ;
+                             }
+                             flashstring = flashstring.toLowerCase();
+                             isr.close ( ) ;
+                             if(flashstring.contains("1")){
+                            	 mView.setFlash(1);
+                             }else {
+                            	 mView.setFlash(0);
+                             }                         	
+                         } catch ( IOException ioe ) {
+                             ioe.printStackTrace ( ) ;
+                             mView.setOverlayText(flashstring);
+                         	
+                         }
+                        
+                    }else{
+                    	  try {
+                              FileOutputStream fOut = openFileOutput ( "robotflash.txt" , MODE_WORLD_READABLE ) ;
+                              OutputStreamWriter osw = new OutputStreamWriter ( fOut ) ;
+                              osw.write ( "off" ) ;
+                              osw.flush ( ) ;
+                              osw.close ( ) ;
+                          } catch ( Exception e ) {
+                              e.printStackTrace ( ) ;
+                          }                 	 
                     }
                     
                     
@@ -187,12 +243,15 @@ public class Sample1Java extends Activity {
         mY = menu.add("Y");
         mItemCommand = menu.add("Command");
         mSample = menu.add("Sample");
-        
+        mFlash = menu.add("Flash");
         mItemPreviewRGBA = menu.add("Preview RGBA");
         mItemPreviewHSV = menu.add("Preview HSV");
         mItemPreviewBall = menu.add("Object");
         mItemPreviewPyr = menu.add("Pyramid");
-        		
+        mItemTrack = menu.add("Track");
+        mItemFetch = menu.add("Fetch");
+        mItemExplore = menu.add("Explore");
+        mItemStop = menu.add("Stop");
         return true;
     }
 
@@ -223,6 +282,30 @@ public class Sample1Java extends Activity {
         	mView.setViewMode(Sample1View.VIEW_MODE_PYR);
         }else if(item == mSample){
         	mView.setViewMode(Sample1View.VIEW_MODE_SAMPLE);
+        }else if(item == mFlash){
+        	int flashState = mView.toggleFlash();
+        	String flashString = Integer.toString(flashState);
+      	  	try {
+				FileOutputStream fOut = openFileOutput ( "robotflash.txt" , MODE_WORLD_READABLE ) ;
+				OutputStreamWriter osw = new OutputStreamWriter ( fOut ) ;
+				osw.write ( flashString) ;
+				osw.flush ( ) ;
+				osw.close ( ) ;
+			} catch ( Exception e ) {
+					e.printStackTrace ( ) ;
+			}        	
+        }else if(item == mItemTrack)
+        {
+        	mView.setRobotMode(Sample1View.ROBOT_MODE_TRACK);
+        }else if(item == mItemFetch)
+        {
+        	mView.setRobotMode(Sample1View.ROBOT_MODE_FETCH);
+        }else if(item == mItemExplore)
+        {
+        	mView.setRobotMode(Sample1View.ROBOT_MODE_WALL);
+        }else if(item == mItemStop)
+        {
+        	mView.setRobotMode(Sample1View.ROBOT_MODE_STOP);
         }
         return true;
     }

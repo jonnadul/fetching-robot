@@ -26,6 +26,7 @@ public abstract class SampleViewBase extends SurfaceView implements SurfaceHolde
     private volatile boolean    mThreadRun;
     private byte[]              mBuffer;
     private SurfaceTexture      mSf;
+    private int 				mFlashMode = 0;
 
 
     public SampleViewBase(Context context) {
@@ -105,12 +106,44 @@ public abstract class SampleViewBase extends SurfaceView implements SurfaceHolde
         onPreviewStopped();
     }
 
+    public synchronized int toggleFlash(){
+    	if(mFlashMode == 1){
+    		setFlash(0);
+    		return 0;
+    	}else{
+    		setFlash(1);
+    		return 1;
+    	}
+    	
+    }
+    
+    public synchronized void setFlash(int flashmode){
+    	mFlashMode = flashmode;
+    	if (mCamera != null){
+    		
+    		Camera.Parameters params = mCamera.getParameters();
+            if(mFlashMode == 1){
+            	params.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+            }else{
+            	params.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+            }
+         	mCamera.setParameters(params);
+    	}
+   
+
+    	
+    }
+    
     public synchronized void setupCamera(int width, int height) {
         if (mCamera != null) {
             Log.i(TAG, "Setup Camera - " + width + "x" + height);
             Camera.Parameters params = mCamera.getParameters();
-           params.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
-            
+           
+            if(mFlashMode ==1){
+            	params.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+            }else{
+            	params.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+            }
             List<Camera.Size> sizes = params.getSupportedPreviewSizes();
             mFrameWidth = width;
             mFrameHeight = height;

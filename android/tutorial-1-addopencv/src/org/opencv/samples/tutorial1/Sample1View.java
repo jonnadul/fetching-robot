@@ -1,12 +1,6 @@
 package org.opencv.samples.tutorial1;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -31,18 +25,19 @@ import org.opencv.imgproc.Imgproc;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.os.Environment;
 import android.util.Log;
 
 class Sample1View extends SampleViewBase {
     private static final String TAG = "OCVSample::View";
 
+    /* Image view modes */
     public static final int     VIEW_MODE_RGBA  = 0;
     public static final int     VIEW_MODE_HSV  = 1;
     public static final int     VIEW_MODE_BALL = 2;
     public static final int		VIEW_MODE_PYR = 3;
     public static final int		VIEW_MODE_SAMPLE = 4;
     
+    /* Color modes : Which color to find */
     public static final int		COLOR_MODE_R = 0;
     public static final int		COLOR_MODE_G = 1;
     public static final int		COLOR_MODE_B = 2;
@@ -50,9 +45,15 @@ class Sample1View extends SampleViewBase {
     public static final int		COLOR_MODE_M = 4;
     public static final int		COLOR_MODE_O = 5;
     
+    /* Robot Modes : Track or Pickup or Idle */
+    public static final int 	ROBOT_MODE_STOP = 0;
+    public static final int		ROBOT_MODE_TRACK = 1;
+    public static final int		ROBOT_MODE_FETCH = 2;
+    public static final int		ROBOT_MODE_WALL = 3;
+    
     private String 				mOverlayText = "OPENCV";
   
-
+    /* Image matricies for image processing */
 	private Mat                 mYuv;
     private Mat                 mRgba;
     private Mat					mHsv;
@@ -62,60 +63,60 @@ class Sample1View extends SampleViewBase {
     private Mat                 mGraySubmat;
     private Mat                 mIntermediateMat;
     private Bitmap              mBitmap;
+    
+    /* View mode, color mode, robot mode */
     private int                 mViewMode;
     private int					mColorMode;
-    
-    private Scalar 				mThreshLow = new Scalar(38,40,10);
+    private int					mRobotMode;
+
+	private Scalar 				mThreshLow = new Scalar(38,40,10);
     private Scalar				mThreshHigh = new Scalar(80,255,255);
 
+    /* HSV low and high thresholds for different colors */
+    /*Yellow*/
     private Scalar yLow = new Scalar(25,40,100);
 	private Scalar yHi = new Scalar(50,255,255);
-	private Scalar gLow = new Scalar(70,40,100);
-	private Scalar gHi = new Scalar(100,255,255);
 	
-	private Scalar rLowA = new Scalar(0,40,100);
+	/*Green*/
+	private Scalar gLow = new Scalar(70,60,40); //was 70,40,40
+	private Scalar gHi = new Scalar(120,255,255);
+	
+	/*Red (low portion of H spectrum) */
+	private Scalar rLowA = new Scalar(0,40,70);
 	private Scalar rHiA = new Scalar(20,255,255);
-	private Scalar rLowB = new Scalar(200,40,100);
+	
+	/*Red (high portion of H spectrum) */
+	private Scalar rLowB = new Scalar(220,40,70);
 	private Scalar rHiB = new Scalar(255,255,255);
 	
+	/*Blue*/
 	private Scalar bLow = new Scalar(135,30,30);
 	private Scalar bHi = new Scalar(170,255,255);
     
+	/*Variables for UDP stream */
 	protected DatagramSocket socket;
 	protected byte[] outData;
 	protected InetAddress serverIP;
 	protected DatagramPacket out;
 
+	/* Variables for figuring out contour size and area */
 	private List<MatOfPoint> contours;
-
 	private Mat hierarchy;
-
 	private double areaMax;
-
 	private double areaCalc;
-
 	private Iterator<MatOfPoint> contIter;
-
 	private MatOfPoint contMat;
-
 	private MatOfPoint maxMat;
-
 	private int iterIndex;
-
 	private int maxIndex;
-
 	private int minArea;
-
 	private Iterator<Point> pointIter;
-
 	private Point ballPoint;
 
+	/* Variables for calculating minimum x,y coords in contours */
 	private int minX;
-
 	private int minY;
-
 	private int maxX;
-
 	private int maxY;
     
     public Sample1View(Context context) {
@@ -145,10 +146,10 @@ class Sample1View extends SampleViewBase {
         try {
 			socket = new DatagramSocket();
 			outData =  ("Ping").getBytes();
-			serverIP = InetAddress.getByName("192.168.1.6");
+			serverIP = InetAddress.getByName("192.168.2.106");
 			out = new DatagramPacket(outData,outData.length, serverIP,54259);
-			Log.i(TAG, "Datagram sent");
-			socket.send(out);
+			//Log.i(TAG, "Datagram sent");
+			//socket.send(out);
 	        
         } catch (UnknownHostException e1) {
 			// TODO Auto-generated catch block
@@ -244,6 +245,8 @@ class Sample1View extends SampleViewBase {
 	        		Core.inRange(mHsv, mThreshLow, mThreshHigh, mThreshMat);
 	        		break; 
         	 }
+        	 Core.rectangle(mRgba, new Point(344, 0), new Point(344, 20),new Scalar(255, 255, 0), 3); 
+    		 
         	 Imgproc.erode(mThreshMat, mThreshMat,  Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(7,7)));
         	 Imgproc.dilate(mThreshMat, mThreshMat,  Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(7,7)));
         	 contours = new ArrayList<MatOfPoint>();
@@ -307,7 +310,8 @@ class Sample1View extends SampleViewBase {
         	//Imgproc.pyrDown(mRgba, pyrDownMat);
         	//Imgproc.pyrDown(pyrDownMat, pyrDownMat);
         	Imgproc.cvtColor(mRgba, mHsv, Imgproc.COLOR_RGB2HSV_FULL);
-        	
+        	Core.rectangle(mRgba, new Point(344, 0), new Point(344, 20),new Scalar(255, 255, 0), 3); 
+   		 
        	 switch(mColorMode){
 	    	 case COLOR_MODE_R:
 	    		 Core.inRange(mHsv, rLowA, rHiA, mThreshMata);
@@ -449,12 +453,13 @@ class Sample1View extends SampleViewBase {
     
     protected int sendPointsUDP(int minX, int minY, int maxX, int maxY)
     {
-    	 ByteBuffer byteBuffer = ByteBuffer.allocate(16);        
+    	 ByteBuffer byteBuffer = ByteBuffer.allocate(20);        
          IntBuffer intBuffer = byteBuffer.asIntBuffer();
          intBuffer.put(minX);
          intBuffer.put(minY);
          intBuffer.put(maxX);
          intBuffer.put(maxY);
+         intBuffer.put(mRobotMode);
          
          byte[] array = byteBuffer.array();
     	
@@ -491,5 +496,14 @@ class Sample1View extends SampleViewBase {
 
 	public void setColorMode(int mColorMode) {
 		this.mColorMode = mColorMode;
+	}
+	
+
+    public int getRobotMode() {
+		return mRobotMode;
+	}
+
+	public void setRobotMode(int mRobotMode) {
+		this.mRobotMode = mRobotMode;
 	}
 }
