@@ -76,18 +76,3 @@ def claw_close():
 	claw_servo.closeClaw(100)
 	time.sleep(0.5)
 	claw_servo.detach()
-# claw test
-#os.system('./map')
-#pwm.enable()
-#claw_servo = Claw()
-
-#claw_servo.attach("P9_14")
-
-#claw_servo.openClaw()
-#claw_servo.closeClaw(100)
-#claw_servo.openClaw()
-#claw_servo.closeClaw(100)
-#claw_servo.openClaw()	
-#claw_servo.closeClaw(100)
-#claw_servo.openClaw()
-#claw_servo.detach()
