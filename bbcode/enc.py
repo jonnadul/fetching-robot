@@ -1,6 +1,5 @@
 #! /usr/bin/python
-# Enable PWM Timer on Beaglebone
-# Obtained from https://groups.google.com/forum/#!msg/beagleboard/alKf67dwMHI/b9W2igN6Lr4J
+# Based on MMAP code from https://groups.google.com/forum/#!msg/beagleboard/alKf67dwMHI/b9W2igN6Lr4J
 from mmap import mmap
 from collections import namedtuple
 import struct
